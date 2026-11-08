@@ -1,0 +1,28 @@
+using MyAfricaMyNarrative.Domain;
+
+namespace MyAfricaMyNarrative.UnitTests;
+
+public sealed class ProjectTests
+{
+    [Fact]
+    public void Project_requires_an_owner() =>
+        Assert.Throws<ArgumentException>(() => new Project(Guid.Empty, "Story", DateTimeOffset.UtcNow));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Project_rejects_empty_titles(string title) =>
+        Assert.Throws<ArgumentException>(() => new Project(Guid.NewGuid(), title, DateTimeOffset.UtcNow));
+
+    [Fact]
+    public void Permission_withdrawal_is_explicit_and_timestamped()
+    {
+        var granted = DateTimeOffset.UtcNow;
+        var withdrawn = granted.AddMinutes(1);
+        var asset = new MediaAsset(Guid.NewGuid(), "key.original", "voice.wav", new string('a', 64), "audio/wav", MediaKind.Audio, 12, "Creator", granted);
+        asset.Withdraw(withdrawn);
+        Assert.Equal(PermissionStatus.Withdrawn, asset.PermissionStatus);
+        Assert.Equal(withdrawn, asset.PermissionWithdrawnAtUtc);
+        Assert.Equal("Owner attestation", asset.PermissionDeclaration);
+    }
+}

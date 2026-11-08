@@ -1,0 +1,5 @@
+@model IReadOnlyList<Project>
+@{ ViewData["Title"] = "Projects"; }
+<header class="page-header"><div><p class="eyebrow">Your private studio</p><h1>Projects</h1><p>Your story. Your voice. Our Africa.</p></div></header>
+<section class="surface"><h2>Start a documentary</h2><form asp-action="Create" method="post"><label for="Title">Project title</label><div class="inline-form"><input id="Title" name="Title" maxlength="120" required /><button class="button-primary" type="submit">Start project</button></div></form></section>
+<section><h2>Your projects</h2>@if (Model.Count == 0) { <div class="empty-state"><h3>No stories here yet</h3><p>Give your first documentary a working title. You can change it later.</p></div> } else { <div class="card-grid">@foreach (var item in Model) { <article class="project-card"><p class="status">@(item.IsArchived ? "Archived" : "Private")</p><h3><a asp-action="Details" asp-route-id="@item.Id">@item.Title</a></h3><p>Updated @item.UpdatedAtUtc.ToString("d MMM yyyy")</p></article> }</div> }</section>

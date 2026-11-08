@@ -1,0 +1,23 @@
+My Africa, My Narrative is a creative studio designed for phones that helps African storytellers turn their own voice recordings, photographs and lived experiences into short documentaries they direct.
+
+The problem I want to solve is the gap between having a story and being able to produce it. An emerging filmmaker or community storyteller may have compelling material on a phone, yet need help shaping a narrative, planning achievable shots, editing footage and preparing captions. Production costs and complex tools can leave those stories unfinished. Preserving local expressions, cultural context and the speaker's intended meaning adds another challenge.
+
+It is also an opportunity to preserve what future generations could otherwise lose. Stories, family histories, wisdom and cultural knowledge can disappear when they are neither documented nor passed on. Africa's oral traditions hold invaluable records of identity and experience. With contributors' permission, their voices and context can become a living record, helping future generations understand their beginnings and learn from those who came before them.
+
+My approach begins with the creator's material and intention. A user records a voice note or uploads an interview, photographs and short clips, then explains who the story is for, what it should convey and which details must remain. AI asks focused follow-up questions, helps identify the narrative's strongest moments and proposes an editable sequence of scenes. The creator chooses the structure, protects important quotations and approves changes.
+
+A defining feature is "Make it with what I have." The creator enters their available equipment, people, locations and time. The app turns the approved story into an achievable shot list and production plan. If a location becomes unavailable or a planned interview falls through, it suggests an alternative approach using the remaining resources while preserving the creator's approved intention.
+
+For example, a Zimbabwean fashion designer could bring a recording about how her grandmother's tailoring influenced her streetwear, three family photographs and footage of her work. With one phone and an afternoon available, she could shape those materials into a short film celebrating her own creative journey. AI would help her decide what additional material to capture and assemble an editable first cut; she would direct how the story is told.
+
+Creator control will be visible throughout the experience. Quotations will link back to their source recordings, while AI-written suggestions will be clearly identified. Users can preserve original-language expressions, review captions, record contributor permissions and approve credits before export. Original recordings, transcripts and finished films will be downloadable, helping families and communities keep their own copies. Cultural context comes from the people telling the story, including their own explanations of places, language and references.
+
+The hackathon proof of concept will demonstrate one complete workflow: a recording and a small collection of media become a finished vertical documentary lasting 60-90 seconds with approved captions and credits. It will include transcript correction, scene cards linked to source recordings, planning around available resources, preview and a real video export. I will pilot one language pair, potentially Shona and English, with fluent reviewers and editable transcripts so language limitations are visible and correctable.
+
+I will use OpenAI Codex to develop and test the prototype, combining speech transcription, AI support for story development and media rendering in a responsive web application. The interface will guide users through four clear stages: Record, Shape, Make and Export. I will test it with a small group of creators, measuring time to an approved cut, where they still need assistance and whether the finished film expresses what they intended.
+
+Creation & Craft is the primary track, with supporting elements from Voices & Languages and Truth, Authorship & Ownership. What excites me most is helping a creator move from "I have a story" to a finished piece they are proud to share. African experiences encompass humour, invention, love, ambition, tradition and everyday life. I want to build a tool that gives more people the practical support to bring that variety to the screen, with their voice and creative decisions at its centre.
+
+The saying, "Until the lion learns to write, the story will glorify the hunter," captures why this matters: Africans need the means to record, shape and share their own accounts of their lives and history.
+
+Your story. Your voice. Our Africa.

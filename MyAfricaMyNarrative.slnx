@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/01.UI/">
+    <Project Path="src/01.UI/MyAfricaMyNarrative.Web/MyAfricaMyNarrative.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/02.Logic/">
+    <Project Path="src/02.Logic/MyAfricaMyNarrative.Application/MyAfricaMyNarrative.Application.csproj" />
+    <Project Path="src/02.Logic/MyAfricaMyNarrative.Domain/MyAfricaMyNarrative.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/03.Infrastructure/">
+    <Project Path="src/03.Infrastructure/MyAfricaMyNarrative.Infrastructure/MyAfricaMyNarrative.Infrastructure.csproj" />
+    <Project Path="src/03.Infrastructure/MyAfricaMyNarrative.Worker/MyAfricaMyNarrative.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/04.Tests/">
+    <Project Path="tests/04.Tests/MyAfricaMyNarrative.BrowserTests/MyAfricaMyNarrative.BrowserTests.csproj" />
+    <Project Path="tests/04.Tests/MyAfricaMyNarrative.IntegrationTests/MyAfricaMyNarrative.IntegrationTests.csproj" />
+    <Project Path="tests/04.Tests/MyAfricaMyNarrative.UnitTests/MyAfricaMyNarrative.UnitTests.csproj" />
+  </Folder>
+</Solution>
