@@ -14,6 +14,7 @@ public interface IProjectRepository
     Task<MediaAsset?> FindOwnedAssetAsync(Guid assetId, Guid ownerId, CancellationToken cancellationToken);
     Task<Project?> FindOwnedStudioAsync(Guid projectId, Guid ownerId, CancellationToken cancellationToken);
     Task<Job?> FindOwnedJobAsync(Guid jobId, Guid ownerId, CancellationToken cancellationToken);
+    Task<Job?> FindOwnedJobForUpdateAsync(Guid projectId, Guid ownerId, string kind, string targetHash, CancellationToken cancellationToken);
     Task<ExportArtifact?> FindOwnedArtifactAsync(Guid artifactId, Guid ownerId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Job>> ListOwnedJobsAsync(Guid projectId, Guid ownerId, CancellationToken cancellationToken);
     Task<IReadOnlyList<ExportArtifact>> ListOwnedArtifactsAsync(Guid projectId, Guid ownerId, CancellationToken cancellationToken);

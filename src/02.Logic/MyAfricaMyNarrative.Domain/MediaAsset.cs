@@ -7,7 +7,7 @@ public sealed class MediaAsset
 {
     private MediaAsset() { }
 
-    public MediaAsset(Guid projectId, string storageKey, string originalName, string sha256, string contentType,
+    public MediaAsset(Guid projectId, string storageKey, string originalName, string displayName, string sha256, string contentType,
         MediaKind kind, long byteLength, string? attribution, DateTimeOffset createdAtUtc, long durationMs = 0,
         int? width = null, int? height = null)
     {
@@ -15,6 +15,7 @@ public sealed class MediaAsset
         ProjectId = projectId;
         StorageKey = storageKey;
         OriginalName = originalName;
+        SetDisplayName(displayName);
         Sha256 = sha256;
         ContentType = contentType;
         Kind = kind;
@@ -34,6 +35,7 @@ public sealed class MediaAsset
     public Project Project { get; private set; } = null!;
     public string StorageKey { get; private set; } = string.Empty;
     public string OriginalName { get; private set; } = string.Empty;
+    public string DisplayName { get; private set; } = string.Empty;
     public string Sha256 { get; private set; } = string.Empty;
     public string ContentType { get; private set; } = string.Empty;
     public MediaKind Kind { get; private set; }
@@ -52,5 +54,12 @@ public sealed class MediaAsset
     {
         PermissionStatus = PermissionStatus.Withdrawn;
         PermissionWithdrawnAtUtc = now;
+    }
+
+    public void SetDisplayName(string value)
+    {
+        value = value.Trim();
+        if (value.Length is < 1 or > 120) throw new ArgumentException("Source name must be 1–120 characters.", nameof(value));
+        DisplayName = value;
     }
 }

@@ -15,6 +15,7 @@
             <span class="brand-copy"><strong>My Africa</strong><span>My Narrative</span></span>
         </a>
         <nav aria-label="Primary navigation">
+            <a class="nav-link" asp-controller="Home" asp-action="Help">Lessons &amp; Help</a>
         @if (User.Identity?.IsAuthenticated == true)
         {
             <a class="nav-link" asp-controller="Projects" asp-action="Index">Projects</a>
@@ -28,6 +29,11 @@
         </nav>
     </header>
     <main id="main-content" class="page-shell">@RenderBody()</main>
+    <dialog id="help-dialog" class="help-dialog" aria-labelledby="help-dialog-title">
+        <div class="help-dialog-header"><span class="help-mark" aria-hidden="true">?</span><h2 id="help-dialog-title">Help</h2><button type="button" class="help-close" data-help-close aria-label="Close help">×</button></div>
+        <div id="help-dialog-content" class="help-dialog-content"></div>
+        <div class="help-dialog-actions"><a asp-controller="Home" asp-action="Help">Open Lessons &amp; Help</a><button type="button" data-help-close>Got it</button></div>
+    </dialog>
     <footer><strong>Your story. Your voice. Our Africa.</strong><span>Private by default.</span></footer>
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)

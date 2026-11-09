@@ -36,6 +36,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.Id).ValueGeneratedNever();
             entity.Property(x => x.StorageKey).HasMaxLength(80).IsRequired();
             entity.Property(x => x.OriginalName).HasMaxLength(255).IsRequired();
+            entity.Property(x => x.DisplayName).HasMaxLength(120).IsRequired();
             entity.Property(x => x.Sha256).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Attribution).HasMaxLength(300);
@@ -115,6 +116,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public Task<Job?> FindOwnedJobAsync(Guid jobId, Guid ownerId, CancellationToken cancellationToken) =>
         Jobs.AsNoTracking().SingleOrDefaultAsync(x => x.Id == jobId && x.OwnerUserId == ownerId, cancellationToken);
+
+    public Task<Job?> FindOwnedJobForUpdateAsync(Guid projectId, Guid ownerId, string kind, string targetHash, CancellationToken cancellationToken) =>
+        Jobs.SingleOrDefaultAsync(x => x.ProjectId == projectId && x.OwnerUserId == ownerId && x.Kind == kind && x.TargetHash == targetHash, cancellationToken);
 
     public Task<ExportArtifact?> FindOwnedArtifactAsync(Guid artifactId, Guid ownerId, CancellationToken cancellationToken) =>
         ExportArtifacts.AsNoTracking().SingleOrDefaultAsync(x => x.Id == artifactId && Projects.Any(p => p.Id == x.ProjectId && p.OwnerUserId == ownerId), cancellationToken);

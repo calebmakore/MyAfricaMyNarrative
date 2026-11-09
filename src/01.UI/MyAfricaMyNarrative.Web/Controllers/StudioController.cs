@@ -109,8 +109,15 @@ public sealed class StudioController(IProjectRepository projects, ICurrentUser c
         { TempData["Error"] = "Export is not ready. Complete the checklist first."; return RedirectToAction(nameof(Export), new { id }); }
         var kind = final ? "RenderFinal" : "RenderPreview";
         var targetHash = check.Revision.SnapshotHash;
-        if ((await projects.ListOwnedJobsAsync(id, UserId, ct)).Any(x => x.Kind == kind && x.TargetHash == targetHash && x.State is JobState.Queued or JobState.Running or JobState.Succeeded))
-        { TempData["Notice"] = "That exact revision is already queued or rendered."; return RedirectToAction(nameof(Export), new { id }); }
+        var existing = await projects.FindOwnedJobForUpdateAsync(id, UserId, kind, targetHash, ct);
+        if (existing is not null)
+        {
+            if (existing.State is JobState.Queued or JobState.Running or JobState.Succeeded)
+            { TempData["Notice"] = "That exact revision is already queued or rendered."; return RedirectToAction(nameof(Export), new { id }); }
+            existing.Retry(DateTimeOffset.UtcNow); await projects.SaveChangesAsync(ct);
+            TempData["Notice"] = "The failed export was queued again with a fresh bounded attempt set.";
+            return RedirectToAction(nameof(Export), new { id });
+        }
         var payload = JsonSerializer.Serialize(new { StoryRevisionId = check.Revision.Id, Final = final });
         await projects.AddJobAsync(new Job(id, UserId, kind, targetHash, payload, DateTimeOffset.UtcNow), ct); await projects.SaveChangesAsync(ct);
         TempData["Notice"] = "Export queued durably. Start the Worker to render it.";

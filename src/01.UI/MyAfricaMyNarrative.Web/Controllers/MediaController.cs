@@ -26,8 +26,8 @@ public sealed class MediaController(IProjectRepository projects, ICurrentUser cu
         await using var input = model.File.OpenReadStream();
         var inspected = await inspector.InspectAsync(input, cancellationToken);
         if (inspected is null) { TempData["Error"] = "The file content is not a supported JPEG, PNG, WebP, MP3, WAV, M4A/MP4, WebM, or WebA source."; return RedirectToAction("Details", "Projects", new { id = projectId }); }
-        // MediaRecorder produces a valid WebM container. Until ffprobe is available, use its
-        // audio content-type only after the EBML/WebM signature has passed inspection.
+        // MediaRecorder produces an EBML/WebM container for both audio-only and video content.
+        // Preserve its audio intent only after the container signature and decoded streams pass inspection.
         var isWebAudio = model.File.ContentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)
             || string.Equals(Path.GetExtension(model.File.FileName), ".weba", StringComparison.OrdinalIgnoreCase);
         if (inspected.ContentType == "video/webm" && isWebAudio)
@@ -39,8 +39,9 @@ public sealed class MediaController(IProjectRepository projects, ICurrentUser cu
         var stored = await storage.WriteOriginalAsync(input, options.Value.MaxUploadBytes, cancellationToken);
         try
         {
-            project.MediaAssets.Add(new MediaAsset(project.Id, stored.Key, Path.GetFileName(model.File.FileName), stored.Sha256, inspected.ContentType, inspected.Kind, stored.Length, model.Attribution, DateTimeOffset.UtcNow, probed.DurationMs, probed.Width, probed.Height));
+            project.MediaAssets.Add(new MediaAsset(project.Id, stored.Key, Path.GetFileName(model.File.FileName), model.DisplayName, stored.Sha256, inspected.ContentType, inspected.Kind, stored.Length, model.Attribution, DateTimeOffset.UtcNow, probed.DurationMs, probed.Width, probed.Height));
             await projects.SaveChangesAsync(cancellationToken);
+            TempData["Notice"] = "Source saved privately. You can review it below or continue to Shape.";
         }
         catch { await storage.DeleteAsync(stored.Key, cancellationToken); throw; }
         return RedirectToAction("Details", "Projects", new { id = projectId });
@@ -63,5 +64,18 @@ public sealed class MediaController(IProjectRepository projects, ICurrentUser cu
         asset.Withdraw(DateTimeOffset.UtcNow);
         await projects.SaveChangesAsync(cancellationToken);
         return RedirectToAction("Details", "Projects", new { id = projectId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Rename(Guid projectId, Guid id, SourceRenameViewModel model, CancellationToken cancellationToken)
+    {
+        var project = await projects.FindOwnedAsync(projectId, UserId, cancellationToken);
+        var asset = project?.MediaAssets.SingleOrDefault(x => x.Id == id);
+        if (asset is null) return NotFound();
+        if (!ModelState.IsValid) { TempData["Error"] = "Enter a source name between 1 and 120 characters."; return RedirectToAction("Details", "Projects", new { id = projectId }); }
+        asset.SetDisplayName(model.DisplayName);
+        await projects.SaveChangesAsync(cancellationToken);
+        TempData["Notice"] = "Source name updated.";
+        return Redirect($"{Url.Action("Details", "Projects", new { id = projectId })}#sources");
     }
 }

@@ -48,6 +48,12 @@ public sealed class Job
         NextAttemptAtUtc = retryAt; if (State == JobState.Failed) CompletedAtUtc = now; ClearLease();
     }
 
+    public void Retry(DateTimeOffset now)
+    {
+        if (State is not (JobState.Failed or JobState.Cancelled)) throw new InvalidOperationException("Only failed or cancelled jobs can be retried.");
+        State = JobState.Queued; Attempts = 0; NextAttemptAtUtc = now; CompletedAtUtc = null; LastFailure = null; ClearLease();
+    }
+
     private void EnsureAttempt(Guid token)
     { if (State != JobState.Running || AttemptToken != token) throw new InvalidOperationException("The job attempt no longer owns this lease."); }
     private void ClearLease() { LeaseOwner = null; AttemptToken = null; LeaseExpiresAtUtc = null; }

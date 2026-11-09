@@ -20,7 +20,12 @@ public sealed class ProjectEditViewModel
 public sealed class UploadViewModel
 {
     [Required] public IFormFile? File { get; set; }
+    [Required, StringLength(120, MinimumLength = 1)] public string DisplayName { get; set; } = string.Empty;
     [StringLength(300)] public string? Attribution { get; set; }
     [Range(typeof(bool), "true", "true", ErrorMessage = "Confirm that you have permission to use this source.")]
     public bool PermissionConfirmed { get; set; }
+}
+public sealed class SourceRenameViewModel
+{
+    [Required, StringLength(120, MinimumLength = 1)] public string DisplayName { get; set; } = string.Empty;
 }
