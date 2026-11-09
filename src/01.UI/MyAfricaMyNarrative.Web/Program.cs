@@ -7,6 +7,7 @@ using MyAfricaMyNarrative.Infrastructure.Persistence;
 using MyAfricaMyNarrative.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 var keyPath = Path.GetFullPath(builder.Configuration["Security:DataProtectionKeysPath"] ?? "App_Data/data-protection-keys");
 Directory.CreateDirectory(keyPath);
 builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(keyPath)).SetApplicationName("MyAfricaMyNarrative");

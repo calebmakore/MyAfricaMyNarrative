@@ -8,7 +8,8 @@ public sealed class MediaAsset
     private MediaAsset() { }
 
     public MediaAsset(Guid projectId, string storageKey, string originalName, string sha256, string contentType,
-        MediaKind kind, long byteLength, string? attribution, DateTimeOffset createdAtUtc)
+        MediaKind kind, long byteLength, string? attribution, DateTimeOffset createdAtUtc, long durationMs = 0,
+        int? width = null, int? height = null)
     {
         Id = Guid.NewGuid();
         ProjectId = projectId;
@@ -18,6 +19,9 @@ public sealed class MediaAsset
         ContentType = contentType;
         Kind = kind;
         ByteLength = byteLength;
+        DurationMs = durationMs;
+        Width = width;
+        Height = height;
         Attribution = attribution?.Trim() ?? string.Empty;
         PermissionStatus = PermissionStatus.Granted;
         PermissionDeclaration = "Owner attestation";
@@ -34,6 +38,9 @@ public sealed class MediaAsset
     public string ContentType { get; private set; } = string.Empty;
     public MediaKind Kind { get; private set; }
     public long ByteLength { get; private set; }
+    public long DurationMs { get; private set; }
+    public int? Width { get; private set; }
+    public int? Height { get; private set; }
     public string Attribution { get; private set; } = string.Empty;
     public string PermissionDeclaration { get; private set; } = string.Empty;
     public PermissionStatus PermissionStatus { get; private set; }

@@ -9,7 +9,7 @@ namespace MyAfricaMyNarrative.Web.Controllers;
 
 [Authorize]
 public sealed class MediaController(IProjectRepository projects, ICurrentUser currentUser, IPrivateMediaStorage storage,
-    IMediaInspector inspector, IOptions<MediaOptions> options) : Controller
+    IMediaInspector inspector, IMediaProbe probe, IOptions<MediaOptions> options) : Controller
 {
     private Guid UserId => currentUser.UserId ?? throw new InvalidOperationException("An authenticated user ID is required.");
 
@@ -32,10 +32,14 @@ public sealed class MediaController(IProjectRepository projects, ICurrentUser cu
             || string.Equals(Path.GetExtension(model.File.FileName), ".weba", StringComparison.OrdinalIgnoreCase);
         if (inspected.ContentType == "video/webm" && isWebAudio)
             inspected = new InspectedMedia(MediaKind.Audio, "audio/webm");
+        ProbedMedia probed;
+        try { probed = await probe.ProbeAsync(input, cancellationToken); }
+        catch (Exception exception) when (exception is InvalidDataException or System.ComponentModel.Win32Exception)
+        { TempData["Error"] = exception.Message; return RedirectToAction("Details", "Projects", new { id = projectId }); }
         var stored = await storage.WriteOriginalAsync(input, options.Value.MaxUploadBytes, cancellationToken);
         try
         {
-            project.MediaAssets.Add(new MediaAsset(project.Id, stored.Key, Path.GetFileName(model.File.FileName), stored.Sha256, inspected.ContentType, inspected.Kind, stored.Length, model.Attribution, DateTimeOffset.UtcNow));
+            project.MediaAssets.Add(new MediaAsset(project.Id, stored.Key, Path.GetFileName(model.File.FileName), stored.Sha256, inspected.ContentType, inspected.Kind, stored.Length, model.Attribution, DateTimeOffset.UtcNow, probed.DurationMs, probed.Width, probed.Height));
             await projects.SaveChangesAsync(cancellationToken);
         }
         catch { await storage.DeleteAsync(stored.Key, cancellationToken); throw; }

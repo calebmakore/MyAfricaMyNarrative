@@ -21,6 +21,10 @@ public sealed class Project
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public byte[] RowVersion { get; private set; } = [];
     public ICollection<MediaAsset> MediaAssets { get; } = new List<MediaAsset>();
+    public ICollection<TranscriptRevision> TranscriptRevisions { get; } = new List<TranscriptRevision>();
+    public ICollection<StoryRevision> StoryRevisions { get; } = new List<StoryRevision>();
+    public ICollection<ReviewApproval> ReviewApprovals { get; } = new List<ReviewApproval>();
+    public ICollection<ResourceItem> Resources { get; } = new List<ResourceItem>();
 
     public void Rename(string title, DateTimeOffset now)
     {
