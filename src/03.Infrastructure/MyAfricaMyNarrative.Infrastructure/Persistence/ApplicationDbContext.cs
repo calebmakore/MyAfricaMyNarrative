@@ -27,6 +27,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
         builder.Entity<MediaAsset>(entity =>
         {
+            entity.Property(x => x.Id).ValueGeneratedNever();
             entity.Property(x => x.StorageKey).HasMaxLength(80).IsRequired();
             entity.Property(x => x.OriginalName).HasMaxLength(255).IsRequired();
             entity.Property(x => x.Sha256).HasMaxLength(64).IsFixedLength().IsRequired();

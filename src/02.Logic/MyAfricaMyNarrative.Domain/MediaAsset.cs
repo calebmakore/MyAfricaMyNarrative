@@ -8,7 +8,7 @@ public sealed class MediaAsset
     private MediaAsset() { }
 
     public MediaAsset(Guid projectId, string storageKey, string originalName, string sha256, string contentType,
-        MediaKind kind, long byteLength, string attribution, DateTimeOffset createdAtUtc)
+        MediaKind kind, long byteLength, string? attribution, DateTimeOffset createdAtUtc)
     {
         Id = Guid.NewGuid();
         ProjectId = projectId;
@@ -18,7 +18,7 @@ public sealed class MediaAsset
         ContentType = contentType;
         Kind = kind;
         ByteLength = byteLength;
-        Attribution = attribution.Trim();
+        Attribution = attribution?.Trim() ?? string.Empty;
         PermissionStatus = PermissionStatus.Granted;
         PermissionDeclaration = "Owner attestation";
         PermissionGrantedAtUtc = createdAtUtc;

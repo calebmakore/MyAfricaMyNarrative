@@ -23,17 +23,20 @@ public sealed class LocalPrivateMediaStorage : IPrivateMediaStorage
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         try
         {
-            await using var destination = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous);
-            var buffer = new byte[81920];
-            int read;
-            while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
+            await using (var destination = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
             {
-                length += read;
-                if (length > maxBytes) throw new InvalidDataException($"Upload exceeds the {maxBytes} byte limit.");
-                hash.AppendData(buffer.AsSpan(0, read));
-                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                var buffer = new byte[81920];
+                int read;
+                while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
+                {
+                    length += read;
+                    if (length > maxBytes) throw new InvalidDataException($"Upload exceeds the {maxBytes} byte limit.");
+                    hash.AppendData(buffer.AsSpan(0, read));
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                }
+                await destination.FlushAsync(cancellationToken);
             }
-            await destination.FlushAsync(cancellationToken);
+
             File.Move(temporaryPath, path);
             return new StoredMedia(key, Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant(), length);
         }

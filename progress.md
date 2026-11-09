@@ -28,7 +28,8 @@ Allowed states: Not started, In progress, Blocked, Complete. Complete requires e
 - Byte-signature inspection for JPEG, PNG, WebP, MP3, WAV, ISO base-media and WebM; unrecognised input is rejected. Full decode/ffprobe validation is not yet implemented and is not claimed.
 - Owner attestation is labelled honestly. Permission withdrawal blocks playback. Authorised media responses support range requests.
 - Responsive editorial UI tokens, exact tagline, Record/Shape/Make/Export navigation, real source players and disabled future stages with reasons.
-- Progressive microphone capture with refusal/unsupported upload fallback and navigation warning while recording. Direct persistence of the recorded blob remains incomplete.
+- Modern visual system inspired by the user-provided Thungela Career Pathways reference: self-hosted Jost typography, warm near-black/amber palette, strong editorial hero, rounded layered cards, clearer account screens and responsive navigation. The product retains its own identity and content.
+- Progressive microphone capture with refusal/unsupported upload fallback, five-minute cap, preview, unsaved-navigation warning and direct private “Use this recording” persistence. Genuine `.weba`/WebM audio is accepted only after its EBML container signature passes inspection.
 - Initial durable `Jobs` SQL table foundation with GUID key, owner/project/target fields, unique deduplication key and `rowversion`; atomic claims/leases are M2 work.
 
 ## Dependencies/blockers
@@ -40,6 +41,7 @@ Allowed states: Not started, In progress, Blocked, Complete. Complete requires e
 - Loopback Web host started successfully at `http://127.0.0.1:5088`; a separate sandboxed HTTP probe could not access its isolated socket, so no rendered browser claim is made.
 - Testhost execution hangs inside the restricted process sandbox but passed outside it; this is recorded in the validation log.
 - No provider key is configured or required. AI mode remains Manual; no Live call was made.
+- Jost Regular/Medium/SemiBold/Bold is self-hosted under `wwwroot/fonts/jost`; the included `OFL.txt` records the SIL Open Font License. No runtime Google Fonts request is required.
 
 ## Provider capability record
 
@@ -61,6 +63,13 @@ Allowed states: Not started, In progress, Blocked, Complete. Complete requires e
 | 2026-11-08 | M1 / AC02 partial | Unit tests for project invariants, explicit permission withdrawal, PNG byte detection and unknown-content rejection. | Passed. Boundary corrupt-container/hash/persistence checks remain unrun. | Included in 6-test result. |
 | 2026-11-08 | M0/M1 | `dotnet test tests/04.Tests/MyAfricaMyNarrative.UnitTests/MyAfricaMyNarrative.UnitTests.csproj --no-build --no-restore --disable-build-servers -m:1 -v:minimal` | Outside restricted process sandbox: 6 passed, 0 failed, 0 skipped, 406 ms. Inside sandbox the testhost hung before execution. | Exact test runner summary. |
 | 2026-11-08 | M1 startup partial | `dotnet run --project src/01.UI/MyAfricaMyNarrative.Web/MyAfricaMyNarrative.Web.csproj --no-build --no-launch-profile --urls http://127.0.0.1:5088` | Host started in Development and listened on 127.0.0.1:5088. Data-protection keys persist under ignored `App_Data`; key-at-rest encryption is not configured for local development. | Hosting lifetime output; rendered HTTP/browser check unrun. |
+| 2026-11-08 | M1 UI | Inspected `https://thungela-test.puresurvey.co.za/` in a browser and read rendered design properties. | Reference uses Jost, `#2A2320`, `#FAF7F2`, `#FBB72E`, 12–16 px radii and layered low shadows; these cues informed an original My Africa, My Narrative treatment. | Browser screenshot and computed styles. |
+| 2026-11-08 | M1 UI | `dotnet build MyAfricaMyNarrative.slnx --no-restore --disable-build-servers -m:1 -v:minimal` | Succeeded with 0 warnings and 0 errors after stopping the running Web host that initially locked its output DLLs. | All 8 projects built. |
+| 2026-11-08 | M1 UI | `dotnet test tests/04.Tests/MyAfricaMyNarrative.UnitTests/MyAfricaMyNarrative.UnitTests.csproj --no-build --no-restore --disable-build-servers -m:1 -v:minimal` | 6 passed, 0 failed, 0 skipped, 287 ms. | Exact test runner summary. |
+| 2026-11-08 | M1 UI / AC16 partial | Reloaded authenticated Projects and Details screens in the in-app browser; checked computed layout. | Jost loaded locally; exact tagline present; `scrollWidth` equalled `clientWidth` (1086 px), proving no horizontal overflow at the observed desktop viewport. Mobile/browser matrix remains unrun. | Rendered screenshots and DOM-computed values. |
+| 2026-11-08 | M1 / AC03 partial | Built the direct MediaRecorder-to-private-upload flow and inspected the authenticated Record UI without granting microphone permission. | “Start microphone” and “Stop and review” have a measured 16 px gap; review exposes “Use this recording”; `.weba` is accepted; solution build succeeded and 6 unit tests passed. Actual microphone permission/capture remains a user-device check. | Browser DOM/screenshot, build output and test result. |
+| 2026-11-09 | M1 / WebA upload repair | Inspected `0432a4a9-3037-43ee-9741-f1d11cf1fd27.weba` (338,396 bytes; EBML/WebM signature), then exercised its authenticated upload with permission checked and attribution blank. Repaired implicit-required validation/null trimming, disposed the temporary destination before its Windows rename, and configured domain-generated `MediaAsset.Id` values with `ValueGeneratedNever()` so EF inserts rather than updates. Ran `dotnet build MyAfricaMyNarrative.slnx --no-restore --disable-build-servers -m:1 -v:minimal` and the focused unit-test command. | Exact WebA upload succeeded, generic/error pages were absent, the filename appeared under Sources and an audio player was rendered. Build: 0 warnings/errors. Tests: 7 passed, 0 failed/skipped, 755 ms. The supplied file was persisted once in the user's project as part of the authorised verification. | Browser DOM result, diagnostic exception traces, build output and test runner summary. |
+| 2026-11-09 | M1 UI / static assets | Added `UseStaticFiles()` before routing after the no-launch-profile local host returned `/css/site.css` as HTTP 200 with zero bytes even though the static-asset manifest was present. Rebuilt the solution and reopened the authenticated project page. | Build succeeded with 0 warnings/errors. Browser loaded 102 CSS rules; computed body font is Jost and background is `rgb(250, 247, 242)`. Styled project/source cards were visually confirmed. | HTTP response inspection, browser computed styles and screenshot. |
 
 ## Decisions
 
@@ -75,6 +84,6 @@ Allowed states: Not started, In progress, Blocked, Complete. Complete requires e
 ## Session handover
 - Files changed: solution/projects under `src/` and `tests/`; `global.json`, `.gitignore`, migration, configuration, UI/assets and this progress record.
 - Blocked/unrun checks: FFmpeg/ffprobe metadata validation; two-user direct-ID/browser checks; actual upload/playback through a browser; microphone capture persistence; SQL integration suite; browser suite.
-- Known defects: ISO base-media signature inspection cannot yet distinguish/fully validate audio M4A from video MP4; recording preview must be downloaded/uploaded rather than saved directly; deleting database records and local files is not transactional.
+- Known defects: ISO base-media signature inspection cannot yet distinguish/fully validate audio M4A from video MP4; deleting database records and local files is not transactional.
 - Material user decisions required: none for the next work.
 - Next concrete step: install/configure FFmpeg/ffprobe, implement a bounded `ProcessStartInfo.ArgumentList` probe, persist full metadata, add SQL integration tests for two-owner isolation/storage/hash/withdrawal, then run the authenticated browser Record journey.

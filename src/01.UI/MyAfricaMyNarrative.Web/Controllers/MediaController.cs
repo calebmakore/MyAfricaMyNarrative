@@ -25,7 +25,13 @@ public sealed class MediaController(IProjectRepository projects, ICurrentUser cu
         if (model.File.Length > options.Value.MaxUploadBytes) { TempData["Error"] = "The source exceeds the 20 MiB upload limit."; return RedirectToAction("Details", "Projects", new { id = projectId }); }
         await using var input = model.File.OpenReadStream();
         var inspected = await inspector.InspectAsync(input, cancellationToken);
-        if (inspected is null) { TempData["Error"] = "The file content is not a supported JPEG, PNG, WebP, MP3, WAV, M4A/MP4, or WebM source."; return RedirectToAction("Details", "Projects", new { id = projectId }); }
+        if (inspected is null) { TempData["Error"] = "The file content is not a supported JPEG, PNG, WebP, MP3, WAV, M4A/MP4, WebM, or WebA source."; return RedirectToAction("Details", "Projects", new { id = projectId }); }
+        // MediaRecorder produces a valid WebM container. Until ffprobe is available, use its
+        // audio content-type only after the EBML/WebM signature has passed inspection.
+        var isWebAudio = model.File.ContentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Path.GetExtension(model.File.FileName), ".weba", StringComparison.OrdinalIgnoreCase);
+        if (inspected.ContentType == "video/webm" && isWebAudio)
+            inspected = new InspectedMedia(MediaKind.Audio, "audio/webm");
         var stored = await storage.WriteOriginalAsync(input, options.Value.MaxUploadBytes, cancellationToken);
         try
         {

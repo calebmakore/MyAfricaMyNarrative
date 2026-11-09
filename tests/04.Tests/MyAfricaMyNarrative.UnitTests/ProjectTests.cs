@@ -25,4 +25,13 @@ public sealed class ProjectTests
         Assert.Equal(withdrawn, asset.PermissionWithdrawnAtUtc);
         Assert.Equal("Owner attestation", asset.PermissionDeclaration);
     }
+
+    [Fact]
+    public void Media_asset_allows_omitted_optional_attribution()
+    {
+        var asset = new MediaAsset(Guid.NewGuid(), "key.original", "voice.weba", new string('a', 64),
+            "audio/webm", MediaKind.Audio, 12, null, DateTimeOffset.UtcNow);
+
+        Assert.Equal(string.Empty, asset.Attribution);
+    }
 }

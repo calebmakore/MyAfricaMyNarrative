@@ -1,8 +1,35 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>@ViewData["Title"] - My Africa, My Narrative</title><link rel="stylesheet" href="~/css/site.css" asp-append-version="true" /></head>
-<body><header class="site-header"><a class="brand" asp-controller="Projects" asp-action="Index">My Africa, My Narrative</a><nav aria-label="Account">
-@if (User.Identity?.IsAuthenticated == true) { <a asp-controller="Projects" asp-action="Index">Projects</a><form asp-controller="Account" asp-action="Logout" method="post"><button class="link-button" type="submit">Sign out</button></form> }
-else { <a asp-controller="Account" asp-action="Login">Sign in</a><a asp-controller="Account" asp-action="Register">Create account</a> }</nav></header>
-<main class="page-shell">@RenderBody()</main><footer><strong>Your story. Your voice. Our Africa.</strong><span>Private by default.</span></footer>
-<script src="~/js/site.js" asp-append-version="true"></script>@await RenderSectionAsync("Scripts", required: false)</body></html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2a2320" />
+    <title>@ViewData["Title"] - My Africa, My Narrative</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="site-header">
+        <a class="brand" asp-controller="Projects" asp-action="Index" aria-label="My Africa, My Narrative home">
+            <span class="brand-mark" aria-hidden="true">M</span>
+            <span class="brand-copy"><strong>My Africa</strong><span>My Narrative</span></span>
+        </a>
+        <nav aria-label="Primary navigation">
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <a class="nav-link" asp-controller="Projects" asp-action="Index">Projects</a>
+            <form asp-controller="Account" asp-action="Logout" method="post"><button class="nav-link link-button" type="submit">Sign out</button></form>
+        }
+        else
+        {
+            <a class="nav-link" asp-controller="Account" asp-action="Login">Sign in</a>
+            <a class="nav-cta" asp-controller="Account" asp-action="Register">Create account</a>
+        }
+        </nav>
+    </header>
+    <main id="main-content" class="page-shell">@RenderBody()</main>
+    <footer><strong>Your story. Your voice. Our Africa.</strong><span>Private by default.</span></footer>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
