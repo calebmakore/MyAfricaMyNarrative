@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -11,12 +10,18 @@ using MyAfricaMyNarrative.Infrastructure.Persistence;
 namespace MyAfricaMyNarrative.Infrastructure.Media;
 
 public sealed class FfmpegExportJobHandler(ApplicationDbContext db, IPrivateMediaStorage storage,
-    IOptions<MediaOptions> options, IExportReadinessService readiness, IMediaProbe probe) : IExportJobHandler
+    IOptions<MediaOptions> options, IExportReadinessService readiness, IMediaProbe probe,
+    IDbContextFactory<ApplicationDbContext> dbFactory) : IExportJobHandler
 {
     private sealed record Payload(Guid StoryRevisionId, bool Final);
 
     public async Task<IReadOnlyList<ExportArtifact>> RenderAsync(ClaimedJob claim, CancellationToken ct)
     {
+        using var renderCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var cancellationMonitor = MonitorCancellationAsync(claim.Id, renderCancellation, ct);
+        ct = renderCancellation.Token;
+        try
+        {
         var payload = JsonSerializer.Deserialize<Payload>(claim.PayloadJson) ?? throw new InvalidDataException("Invalid export payload.");
         var project = await db.Projects.AsSplitQuery().Include(x => x.MediaAssets).Include(x => x.TranscriptRevisions)
             .Include(x => x.StoryRevisions).ThenInclude(x => x.Scenes).Include(x => x.ReviewApprovals)
@@ -43,13 +48,13 @@ public sealed class FfmpegExportJobHandler(ApplicationDbContext db, IPrivateMedi
                 args.AddRange(["-i", visualPath, "-ss", (scene.StartMs / 1000d).ToString("0.###", CultureInfo.InvariantCulture), "-i", audioPath,
                     "-t", seconds.ToString("0.###", CultureInfo.InvariantCulture), "-vf", $"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps=30",
                     "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", segment]);
-                await Run(options.Value.FfmpegPath, args, TimeSpan.FromMinutes(5), ct); segments.Add(segment);
+                await BoundedProcessRunner.RunAsync(options.Value.FfmpegPath, args, TimeSpan.FromMinutes(5), ct); segments.Add(segment);
                 srt.AppendLine(index.ToString(CultureInfo.InvariantCulture)).AppendLine($"{SrtTime(timeline)} --> {SrtTime(timeline + scene.EndMs - scene.StartMs)}")
                     .AppendLine(string.IsNullOrWhiteSpace(scene.Caption) ? scene.Text : scene.Caption).AppendLine(); timeline += scene.EndMs - scene.StartMs;
             }
             var list = Path.Combine(temp, "segments.txt"); await File.WriteAllLinesAsync(list, segments.Select(x => $"file '{x.Replace("'", "'\\''")}'"), ct);
             var video = Path.Combine(temp, payload.Final ? "final.mp4" : "preview.mp4");
-            await Run(options.Value.FfmpegPath, ["-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", "-movflags", "+faststart", video], TimeSpan.FromMinutes(5), ct);
+            await BoundedProcessRunner.RunAsync(options.Value.FfmpegPath, ["-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", "-movflags", "+faststart", video], TimeSpan.FromMinutes(5), ct);
             var captions = Path.Combine(temp, "captions.srt"); await File.WriteAllTextAsync(captions, srt.ToString(), Encoding.UTF8, ct);
             await using (var verification = File.OpenRead(video))
             {
@@ -64,20 +69,26 @@ public sealed class FfmpegExportJobHandler(ApplicationDbContext db, IPrivateMedi
                 new ExportArtifact(project.Id, claim.Id, revision.Id, revision.SnapshotHash, ArtifactKind.Captions, storedCaptions.Key, storedCaptions.Sha256, storedCaptions.Length, now)];
         }
         finally { try { Directory.Delete(temp, true); } catch { } }
+        }
+        finally
+        {
+            renderCancellation.Cancel();
+            try { await cancellationMonitor; } catch (OperationCanceledException) { }
+        }
+    }
+
+    private async Task MonitorCancellationAsync(Guid jobId, CancellationTokenSource renderCancellation, CancellationToken hostToken)
+    {
+        while (!renderCancellation.IsCancellationRequested && !hostToken.IsCancellationRequested)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(500), hostToken);
+            await using var monitorDb = await dbFactory.CreateDbContextAsync(hostToken);
+            var state = await monitorDb.Jobs.AsNoTracking().Where(x => x.Id == jobId).Select(x => x.State).SingleOrDefaultAsync(hostToken);
+            if (state == JobState.Cancelled) { renderCancellation.Cancel(); return; }
+        }
     }
 
     private async Task<string> CopyToTemp(string key, string folder, string name, CancellationToken ct)
     { var path = Path.Combine(folder, name + ".source"); await using var source = await storage.OpenReadAsync(key, ct); await using var target = File.Create(path); await source.CopyToAsync(target, ct); return path; }
     private static string SrtTime(long ms) => TimeSpan.FromMilliseconds(ms).ToString(@"hh\:mm\:ss\,fff", CultureInfo.InvariantCulture);
-    private static async Task Run(string executable, IEnumerable<string> arguments, TimeSpan timeout, CancellationToken ct)
-    {
-        var start = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardOutput = true, CreateNoWindow = true };
-        foreach (var arg in arguments) start.ArgumentList.Add(arg);
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start FFmpeg.");
-        var stderr = process.StandardError.ReadToEndAsync(ct); var stdout = process.StandardOutput.ReadToEndAsync(ct);
-        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(timeout);
-        try { await process.WaitForExitAsync(limit.Token); } catch { try { process.Kill(true); } catch { } throw; }
-        var error = await stderr; _ = await stdout;
-        if (process.ExitCode != 0) throw new InvalidDataException("FFmpeg failed: " + (error.Length > 2000 ? error[^2000..] : error));
-    }
 }

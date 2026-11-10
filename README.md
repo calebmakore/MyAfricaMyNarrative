@@ -1,9 +1,10 @@
-# My Africa, My Narrative — OpenAI Codex starter pack
+# My Africa, My Narrative
 
 **Your story. Your voice. Our Africa.**
 
-Specifications and copyable Codex prompts for the agreed hackathon proof of concept.
-This pack contains instructions, not a finished application. All implementation milestones start as Not started.
+An ASP.NET Core MVC studio for creating a private, source-backed short documentary while preserving original voice, permission evidence, reviewed timing and captions.
+
+See [docs/demo-runbook.md](docs/demo-runbook.md) for verified local setup, migrations, host/Worker startup, diagnostics and the final demonstration path. Current implementation evidence and any unrun boundaries remain in [progress.md](progress.md).
 
 ## Use the pack
 

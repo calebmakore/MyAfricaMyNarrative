@@ -13,6 +13,8 @@ public sealed class ExportReadinessService : IExportReadinessService
         var approval = project.ReviewApprovals.OrderByDescending(x => x.ApprovedAtUtc)
             .FirstOrDefault(x => x.StoryRevisionId == revision.Id && x.SnapshotHash == revision.SnapshotHash);
         if (approval is null) issues.Add("Approve the current story revision.");
+        var languageReview = project.LanguageReviews.Any(x => x.StoryRevisionId == revision.Id && x.SnapshotHash == revision.SnapshotHash);
+        if (!languageReview) issues.Add("Record a fluent language review for the current approved revision.");
         var assets = project.MediaAssets.ToDictionary(x => x.Id);
         foreach (var scene in revision.Scenes)
         {
@@ -25,7 +27,7 @@ public sealed class ExportReadinessService : IExportReadinessService
         }
         var duration = revision.Scenes.Sum(x => x.EndMs - x.StartMs);
         if (duration is < 60_000 or > 90_000) issues.Add("Final film duration must be 60–90 seconds; a shorter cut can only be a labelled preview.");
-        var blockingPreview = issues.Any(x => !x.StartsWith("Final film duration", StringComparison.Ordinal));
-        return new(!blockingPreview, !blockingPreview && duration is >= 60_000 and <= 90_000, issues, revision, approval, duration);
+        var blockingPreview = issues.Any(x => !x.StartsWith("Final film duration", StringComparison.Ordinal) && !x.StartsWith("Record a fluent language review", StringComparison.Ordinal));
+        return new(!blockingPreview, !blockingPreview && languageReview && duration is >= 60_000 and <= 90_000, issues, revision, approval, duration);
     }
 }

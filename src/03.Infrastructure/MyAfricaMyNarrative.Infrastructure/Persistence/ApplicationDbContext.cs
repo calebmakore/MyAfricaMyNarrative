@@ -16,8 +16,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<StoryRevision> StoryRevisions => Set<StoryRevision>();
     public DbSet<StoryScene> StoryScenes => Set<StoryScene>();
     public DbSet<ReviewApproval> ReviewApprovals => Set<ReviewApproval>();
+    public DbSet<LanguageReview> LanguageReviews => Set<LanguageReview>();
     public DbSet<ResourceItem> ResourceItems => Set<ResourceItem>();
     public DbSet<ExportArtifact> ExportArtifacts => Set<ExportArtifact>();
+    public DbSet<CreatorIntent> CreatorIntents => Set<CreatorIntent>();
+    public DbSet<StudioProposal> StudioProposals => Set<StudioProposal>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -84,6 +87,13 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.SnapshotHash).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.HasIndex(x => new { x.ProjectId, x.StoryRevisionId, x.SnapshotHash }).IsUnique();
         });
+        builder.Entity<LanguageReview>(entity =>
+        {
+            entity.Property(x => x.Id).ValueGeneratedNever(); entity.Property(x => x.SnapshotHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(x => x.ReviewerName).HasMaxLength(120).IsRequired(); entity.Property(x => x.Language).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.FluencyBasis).HasMaxLength(200).IsRequired(); entity.Property(x => x.Notes).HasMaxLength(1000).IsRequired();
+            entity.HasIndex(x => new { x.ProjectId, x.StoryRevisionId, x.SnapshotHash }).IsUnique();
+        });
         builder.Entity<ResourceItem>(entity =>
         {
             entity.Property(x => x.Id).ValueGeneratedNever();
@@ -97,6 +107,19 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.StorageKey).HasMaxLength(80).IsRequired();
             entity.Property(x => x.Sha256).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.HasIndex(x => x.StorageKey).IsUnique();
+        });
+        builder.Entity<CreatorIntent>(entity =>
+        {
+            entity.Property(x => x.Id).ValueGeneratedNever(); entity.Property(x => x.Audience).HasMaxLength(500);
+            entity.Property(x => x.Meaning).HasMaxLength(1000); entity.Property(x => x.Tone).HasMaxLength(200);
+            entity.Property(x => x.LocalContext).HasMaxLength(1500); entity.Property(x => x.ProtectedTerms).HasMaxLength(1000);
+            entity.HasIndex(x => x.ProjectId).IsUnique();
+        });
+        builder.Entity<StudioProposal>(entity =>
+        {
+            entity.Property(x => x.Id).ValueGeneratedNever(); entity.Property(x => x.BaselineHash).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Summary).HasMaxLength(2000).IsRequired(); entity.Property(x => x.PayloadJson).HasMaxLength(16000).IsRequired();
+            entity.HasIndex(x => new { x.ProjectId, x.CreatedAtUtc });
         });
     }
 
@@ -112,13 +135,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public Task<Project?> FindOwnedStudioAsync(Guid projectId, Guid ownerId, CancellationToken cancellationToken) =>
         Projects.AsSplitQuery().Include(x => x.MediaAssets).Include(x => x.TranscriptRevisions)
             .Include(x => x.StoryRevisions).ThenInclude(x => x.Scenes).Include(x => x.ReviewApprovals)
-            .Include(x => x.Resources).SingleOrDefaultAsync(x => x.Id == projectId && x.OwnerUserId == ownerId, cancellationToken);
+            .Include(x => x.LanguageReviews)
+            .Include(x => x.Resources).Include(x => x.CreatorIntents).Include(x => x.StudioProposals)
+            .SingleOrDefaultAsync(x => x.Id == projectId && x.OwnerUserId == ownerId, cancellationToken);
 
     public Task<Job?> FindOwnedJobAsync(Guid jobId, Guid ownerId, CancellationToken cancellationToken) =>
         Jobs.AsNoTracking().SingleOrDefaultAsync(x => x.Id == jobId && x.OwnerUserId == ownerId, cancellationToken);
 
     public Task<Job?> FindOwnedJobForUpdateAsync(Guid projectId, Guid ownerId, string kind, string targetHash, CancellationToken cancellationToken) =>
         Jobs.SingleOrDefaultAsync(x => x.ProjectId == projectId && x.OwnerUserId == ownerId && x.Kind == kind && x.TargetHash == targetHash, cancellationToken);
+
+    public Task<Job?> FindOwnedJobForUpdateAsync(Guid jobId, Guid ownerId, CancellationToken cancellationToken) =>
+        Jobs.SingleOrDefaultAsync(x => x.Id == jobId && x.OwnerUserId == ownerId, cancellationToken);
 
     public Task<ExportArtifact?> FindOwnedArtifactAsync(Guid artifactId, Guid ownerId, CancellationToken cancellationToken) =>
         ExportArtifacts.AsNoTracking().SingleOrDefaultAsync(x => x.Id == artifactId && Projects.Any(p => p.Id == x.ProjectId && p.OwnerUserId == ownerId), cancellationToken);

@@ -15,6 +15,7 @@ public interface IProjectRepository
     Task<Project?> FindOwnedStudioAsync(Guid projectId, Guid ownerId, CancellationToken cancellationToken);
     Task<Job?> FindOwnedJobAsync(Guid jobId, Guid ownerId, CancellationToken cancellationToken);
     Task<Job?> FindOwnedJobForUpdateAsync(Guid projectId, Guid ownerId, string kind, string targetHash, CancellationToken cancellationToken);
+    Task<Job?> FindOwnedJobForUpdateAsync(Guid jobId, Guid ownerId, CancellationToken cancellationToken);
     Task<ExportArtifact?> FindOwnedArtifactAsync(Guid artifactId, Guid ownerId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Job>> ListOwnedJobsAsync(Guid projectId, Guid ownerId, CancellationToken cancellationToken);
     Task<IReadOnlyList<ExportArtifact>> ListOwnedArtifactsAsync(Guid projectId, Guid ownerId, CancellationToken cancellationToken);
@@ -50,6 +51,15 @@ public sealed record ExportReadiness(bool CanPreview, bool CanExportFinal, IRead
 public interface IExportReadinessService
 {
     ExportReadiness Check(Project project);
+}
+
+public sealed record StoryAssistantScene(Guid Id, int Order, string Title);
+public sealed record StoryAssistantRequest(IReadOnlyList<StoryAssistantScene> Scenes, string Audience, string Meaning,
+    string Tone, string LocalContext, string ProtectedTerms);
+public sealed record StoryAssistantResult(IReadOnlyList<Guid> SceneOrder, string Summary, string Provider, string Model);
+public interface IStoryAssistant
+{
+    Task<StoryAssistantResult> ProposeOrderAsync(StoryAssistantRequest request, CancellationToken cancellationToken);
 }
 
 public sealed record StoredMedia(string Key, string Sha256, long Length);

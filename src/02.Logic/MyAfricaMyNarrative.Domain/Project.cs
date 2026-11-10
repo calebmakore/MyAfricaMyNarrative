@@ -24,7 +24,10 @@ public sealed class Project
     public ICollection<TranscriptRevision> TranscriptRevisions { get; } = new List<TranscriptRevision>();
     public ICollection<StoryRevision> StoryRevisions { get; } = new List<StoryRevision>();
     public ICollection<ReviewApproval> ReviewApprovals { get; } = new List<ReviewApproval>();
+    public ICollection<LanguageReview> LanguageReviews { get; } = new List<LanguageReview>();
     public ICollection<ResourceItem> Resources { get; } = new List<ResourceItem>();
+    public ICollection<CreatorIntent> CreatorIntents { get; } = new List<CreatorIntent>();
+    public ICollection<StudioProposal> StudioProposals { get; } = new List<StudioProposal>();
 
     public void Rename(string title, DateTimeOffset now)
     {

@@ -125,6 +125,50 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.CreatorIntent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Audience")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("LocalContext")
+                        .IsRequired()
+                        .HasMaxLength(1500)
+                        .HasColumnType("nvarchar(1500)");
+
+                    b.Property<string>("Meaning")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProtectedTerms")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Tone")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique();
+
+                    b.ToTable("CreatorIntents");
+                });
+
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.ExportArtifact", b =>
                 {
                     b.Property<Guid>("Id")
@@ -240,6 +284,60 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Jobs");
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.LanguageReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AttestedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("FluencyBasis")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsSelfReview")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("RecordedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReviewerName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("SnapshotHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("StoryRevisionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "StoryRevisionId", "SnapshotHash")
+                        .IsUnique();
+
+                    b.ToTable("LanguageReviews");
                 });
 
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.MediaAsset", b =>
@@ -504,6 +602,51 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                     b.ToTable("StoryScenes");
                 });
 
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.StudioProposal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BaselineHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsFixture")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ReviewedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CreatedAtUtc");
+
+                    b.ToTable("StudioProposals");
+                });
+
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.TranscriptRevision", b =>
                 {
                     b.Property<Guid>("Id")
@@ -695,6 +838,24 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.CreatorIntent", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
+                        .WithMany("CreatorIntents")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.LanguageReview", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
+                        .WithMany("LanguageReviews")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.MediaAsset", b =>
                 {
                     b.HasOne("MyAfricaMyNarrative.Domain.Project", "Project")
@@ -742,6 +903,15 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.StudioProposal", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
+                        .WithMany("StudioProposals")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.TranscriptRevision", b =>
                 {
                     b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
@@ -753,6 +923,10 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.Project", b =>
                 {
+                    b.Navigation("CreatorIntents");
+
+                    b.Navigation("LanguageReviews");
+
                     b.Navigation("MediaAssets");
 
                     b.Navigation("Resources");
@@ -760,6 +934,8 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                     b.Navigation("ReviewApprovals");
 
                     b.Navigation("StoryRevisions");
+
+                    b.Navigation("StudioProposals");
 
                     b.Navigation("TranscriptRevisions");
                 });

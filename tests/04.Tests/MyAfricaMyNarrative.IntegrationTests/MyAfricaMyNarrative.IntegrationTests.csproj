@@ -18,4 +18,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\03.Infrastructure\MyAfricaMyNarrative.Infrastructure\MyAfricaMyNarrative.Infrastructure.csproj" />
+  </ItemGroup>
+
 </Project>

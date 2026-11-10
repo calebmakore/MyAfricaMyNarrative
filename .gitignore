@@ -4,7 +4,10 @@ obj/
 .dotnet-sdk/
 .dotnet-install.ps1
 .tools/
+.run/
 App_Data/
 *.user
 *.suo
+.vs/
+.fresh-verification/
 appsettings.Local.json

@@ -35,3 +35,22 @@ public sealed class ResourceEditViewModel
     [Required, StringLength(120)] public string Name { get; set; } = string.Empty;
     [StringLength(300)] public string Availability { get; set; } = string.Empty;
 }
+
+public sealed class LanguageReviewViewModel
+{
+    [Required, StringLength(120, MinimumLength = 2)] public string ReviewerName { get; set; } = string.Empty;
+    [Required, StringLength(40, MinimumLength = 2)] public string Language { get; set; } = string.Empty;
+    [Required, StringLength(200, MinimumLength = 2)] public string FluencyBasis { get; set; } = string.Empty;
+    public bool IsSelfReview { get; set; }
+    [StringLength(1000)] public string Notes { get; set; } = string.Empty;
+    [Range(typeof(bool), "true", "true", ErrorMessage = "The reviewer must confirm the attestation.")] public bool Attested { get; set; }
+}
+
+public sealed class CreatorIntentViewModel
+{
+    [StringLength(500)] public string Audience { get; set; } = string.Empty;
+    [StringLength(1000)] public string Meaning { get; set; } = string.Empty;
+    [StringLength(200)] public string Tone { get; set; } = string.Empty;
+    [StringLength(1500)] public string LocalContext { get; set; } = string.Empty;
+    [StringLength(1000)] public string ProtectedTerms { get; set; } = string.Empty;
+}

@@ -32,4 +32,23 @@ public sealed class StudioTests
         Assert.True(job.TryClaim("one", Guid.NewGuid(), now, TimeSpan.FromMinutes(1)));
         Assert.False(job.TryClaim("two", Guid.NewGuid(), now.AddSeconds(1), TimeSpan.FromMinutes(1)));
     }
+
+    [Fact]
+    public void Fixture_proposal_is_labelled_and_reviewed_only_once()
+    {
+        var proposal = new StudioProposal(Guid.NewGuid(), ProposalKind.StoryOrder, new string('c', 64), "Reorder existing scenes", "[]", DateTimeOffset.UtcNow);
+        Assert.True(proposal.IsFixture); Assert.Equal(ProposalStatus.Pending, proposal.Status);
+        proposal.Review(false, DateTimeOffset.UtcNow);
+        Assert.Equal(ProposalStatus.Rejected, proposal.Status);
+        Assert.Throws<InvalidOperationException>(() => proposal.Review(true, DateTimeOffset.UtcNow));
+    }
+
+    [Fact]
+    public void Creator_intention_preserves_supplied_protected_terms()
+    {
+        var intent = new CreatorIntent(Guid.NewGuid(), "Young designers", "Family influence", "Warm", "Harare", "chinyakare", DateTimeOffset.UtcNow);
+        Assert.Equal("chinyakare", intent.ProtectedTerms);
+        intent.Update(intent.Audience, intent.Meaning, intent.Tone, intent.LocalContext, "chinyakare · mbuya", DateTimeOffset.UtcNow);
+        Assert.Contains("chinyakare", intent.ProtectedTerms);
+    }
 }
