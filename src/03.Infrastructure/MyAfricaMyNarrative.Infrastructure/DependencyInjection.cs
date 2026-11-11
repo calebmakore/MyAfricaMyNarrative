@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<IProjectRepository>(provider => provider.GetRequiredService<ApplicationDbContext>());
         services.AddScoped<IJobStore, SqlJobStore>();
         services.AddScoped<IExportJobHandler, FfmpegExportJobHandler>();
+        services.AddSingleton<ISlideRenderer, FfmpegSlideRenderer>();
         services.AddSingleton<IPrivateMediaStorage, LocalPrivateMediaStorage>();
         services.AddSingleton<IMediaInspector, SignatureMediaInspector>();
         services.AddSingleton<IMediaProbe, FfprobeMediaProbe>();

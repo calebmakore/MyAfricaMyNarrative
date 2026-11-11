@@ -59,6 +59,11 @@ public sealed class SceneEditViewModel
     public decimal? EndSeconds { get => null; set { if (value is decimal v) EndMs = Seconds.ToMs(v); } }
     [DisplayFormat(ConvertEmptyStringToNull = false), StringLength(2000)] public string Caption { get; set; } = string.Empty;
     [DisplayFormat(ConvertEmptyStringToNull = false), StringLength(2000)] public string Translation { get; set; } = string.Empty;
+    /// <summary>Extra pictures shown in turn under the same voice.</summary>
+    public List<Guid> MorePictureIds { get; set; } = [];
+    public bool KeepClipSound { get; set; }
+    [Range(0, 300000)] public long ClipStartMs { get; set; }
+    public decimal? ClipStartSeconds { get => null; set { if (value is decimal v) ClipStartMs = Seconds.ToMs(v); } }
 }
 
 public sealed class CreditEditViewModel
@@ -83,6 +88,9 @@ public sealed class PilotFeedbackViewModel
     [StringLength(500)] public string? HelpNote { get; set; }
     [StringLength(1000)] public string? Comment { get; set; }
 }
+
+/// <summary>Extra pictures and clip-sound options shared by the add and edit scene forms.</summary>
+public sealed record ScenePictureOptionsModel(IReadOnlyList<MediaAsset> Visuals, IReadOnlyList<Guid> Selected, bool KeepClipSound, long ClipStartMs, string IdPrefix);
 
 public sealed record PlanStepViewModel(ProductionPlanStep? Step, bool Changed, IReadOnlyDictionary<Guid, string> ResourceNames, IReadOnlyDictionary<Guid, string> AssetNames);
 

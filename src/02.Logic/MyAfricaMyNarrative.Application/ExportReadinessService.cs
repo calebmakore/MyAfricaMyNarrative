@@ -30,9 +30,10 @@ public sealed class ExportReadinessService : IExportReadinessService
         {
             if (!assets.TryGetValue(scene.AudioAssetId, out var audio) || audio.PermissionStatus != PermissionStatus.Granted)
                 blocking.Add($"Scene {scene.Order} needs permitted source audio.");
-            if (!assets.TryGetValue(scene.VisualAssetId, out var visual) || visual.PermissionStatus != PermissionStatus.Granted)
+            var pictures = scene.Pictures.Select(id => assets.TryGetValue(id, out var p) && p.PermissionStatus == PermissionStatus.Granted ? p : null).ToList();
+            if (pictures.Any(x => x is null))
                 blocking.Add($"Scene {scene.Order} needs a permitted visual.");
-            foreach (var used in new[] { audio, visual }.Where(x => x is not null).Distinct())
+            foreach (var used in pictures.Prepend(audio).Where(x => x is not null).Distinct())
             {
                 if (used!.ContributorUse == ContributorUse.Declined)
                     blocking.Add($"Scene {scene.Order} uses “{used.DisplayName}”, which {used.SuppliedBy} declined. Replace it or remove the scene.");

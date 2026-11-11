@@ -23,9 +23,12 @@ public sealed class VideoRecordingTests
     public void A_scene_whose_picture_and_voice_share_one_video_cuts_both_from_the_same_moment()
     {
         var synced = RenderText.SceneSegmentArgs("clip.webm", false, "clip.webm", 12_500, 20_000, 1080, 1920, null, "font.ttf", "out.mp4", visualCarriesTheSound: true);
-        Assert.Equal(["-y", "-ss", "12.5", "-i", "clip.webm", "-t", "7.5"], synced.Take(7));
+        Assert.Equal(["-y", "-t", "20", "-i", "clip.webm"], synced.Take(5));
         Assert.Single(synced, x => x == "-i");                                  // one input: picture and sound together
-        Assert.Contains("0:a:0", synced);
+        var graph = synced[synced.IndexOf("-filter_complex") + 1];
+        Assert.Contains("[0:v]trim=start=12.5:duration=7.5", graph);           // both cut at the same timestamps...
+        Assert.Contains("[0:a]atrim=start=12.5:duration=7.5", graph);          // ...so lips and words stay in sync
+        Assert.DoesNotContain("-ss", synced);                                   // no input seek: WebM recordings have no index
         Assert.DoesNotContain("-stream_loop", synced);
 
         // A separate picture still loops under a voice cut from its own recording.

@@ -127,6 +127,7 @@
                 <label>Voice<select name="AudioAssetId" required data-timing-source>@foreach (var item in audio) { <option value="@item.Id" data-src="@Play(item.Id)">@item.DisplayName</option> }</select></label>
                 <label>Picture<select name="VisualAssetId" required>@foreach (var item in visuals) { <option value="@item.Id">@item.DisplayName</option> }</select></label>
             </div>
+            <partial name="_ScenePictureOptions" model='new ScenePictureOptionsModel(visuals, Array.Empty<Guid>(), false, 0, "add")' />
             <div class="timing" data-timing>
                 <audio controls preload="metadata" src="@Play(audio[0].Id)" data-timing-player></audio>
                 <div class="timing-grid">
@@ -161,7 +162,7 @@
             var quoted = scene.TextOrigin == TextOrigin.SourceQuotation;
             var aiWords = scene.TextOrigin == TextOrigin.AiSuggested;
             <li class="scene-card @(quoted ? "" : "creator") @(aiWords ? "ai-words" : "")" data-scene-id="@scene.Id">
-                <div class="scene-top"><button type="button" class="drag-handle" data-drag-handle aria-label="Drag to reorder @scene.Title" title="Drag to reorder"><span aria-hidden="true">⋮⋮</span></button><span class="scene-order">@scene.Order</span><div><h3>@scene.Title</h3><p class="scene-meta"><span class="status @(quoted ? "warn" : aiWords ? "ai" : "info")">@(quoted ? "From my recording" : aiWords ? "AI-suggested · kept by me" : "Written by me")</span> @sourceNames.GetValueOrDefault(scene.AudioAssetId, "Missing voice") · @sourceNames.GetValueOrDefault(scene.VisualAssetId, "Missing picture") · @((scene.EndMs - scene.StartMs) / 1000d) s</p></div></div>
+                <div class="scene-top"><button type="button" class="drag-handle" data-drag-handle aria-label="Drag to reorder @scene.Title" title="Drag to reorder"><span aria-hidden="true">⋮⋮</span></button><span class="scene-order">@scene.Order</span><div><h3>@scene.Title</h3><p class="scene-meta"><span class="status @(quoted ? "warn" : aiWords ? "ai" : "info")">@(quoted ? "From my recording" : aiWords ? "AI-suggested · kept by me" : "Written by me")</span> @sourceNames.GetValueOrDefault(scene.AudioAssetId, "Missing voice") · @sourceNames.GetValueOrDefault(scene.VisualAssetId, "Missing picture")@if (scene.MorePictureIds.Count > 0) { <span> + @scene.MorePictureIds.Count more picture@(scene.MorePictureIds.Count == 1 ? "" : "s")</span> } · @((scene.EndMs - scene.StartMs) / 1000d) s @if (scene.KeepClipSound) { <span class="status info">clip sound kept</span> }</p></div></div>
                 <audio controls preload="none" src="@Play(scene.AudioAssetId)#t=@Seconds.FromMs(scene.StartMs),@Seconds.FromMs(scene.EndMs)" aria-label="Play the voice for @scene.Title"></audio>
                 <p class="scene-caption">@scene.EffectiveCaption</p>
                 @if (scene.Translation.Length > 0) { <p class="scene-translation">@scene.Translation <span class="status @(languageReview is null ? "warn" : "good")">@(languageReview is null ? "Draft" : "Reviewed")</span></p> }
@@ -182,6 +183,7 @@
                             <label>Voice<select name="AudioAssetId" required data-timing-source>@foreach (var item in audio) { <option value="@item.Id" data-src="@Play(item.Id)" selected="@(item.Id == scene.AudioAssetId)">@item.DisplayName</option> }</select></label>
                             <label>Picture<select name="VisualAssetId" required>@foreach (var item in visuals) { <option value="@item.Id" selected="@(item.Id == scene.VisualAssetId)">@item.DisplayName</option> }</select></label>
                         </div>
+                            <partial name="_ScenePictureOptions" model='new ScenePictureOptionsModel(visuals, scene.MorePictureIds, scene.KeepClipSound, scene.ClipStartMs, $"edit-{scene.Id:N}")' />
                         <div class="timing" data-timing>
                             <audio controls preload="none" src="@Play(scene.AudioAssetId)" data-timing-player></audio>
                             <div class="timing-grid">

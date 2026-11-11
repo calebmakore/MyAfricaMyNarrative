@@ -148,7 +148,18 @@ public sealed class StudioController(IProjectRepository projects, ICurrentUser c
         { error = "Enter a scene title (up to 120 characters) and keep text, caption and translation within their limits."; return false; }
         if (audio is null || visual is null || model.StartMs < 0 || model.EndMs <= model.StartMs || model.EndMs - model.StartMs > 300_000) return false;
         if (audio.DurationMs > 0 && model.EndMs > audio.DurationMs) { error = $"Mark out is beyond the end of “{audio.DisplayName}” ({audio.DurationMs} ms)."; return false; }
-        var candidate = new SceneDraft(model.Title.Trim(), (model.Text ?? "").Trim(), model.TextOrigin, audio.Id, visual.Id, transcript?.Id, model.StartMs, model.EndMs, (model.Caption ?? "").Trim(), (model.Translation ?? "").Trim());
+        var more = model.MorePictureIds.Where(x => x != Guid.Empty && x != visual.Id).Distinct().ToList();
+        if (more.Count > SceneDraft.MaxPictures - 1) { error = $"A scene can show up to {SceneDraft.MaxPictures} pictures."; return false; }
+        if (more.Any(id => !project.MediaAssets.Any(x => x.Id == id && x.Kind != MediaKind.Audio && x.PermissionStatus == PermissionStatus.Granted)))
+        { error = "One of the extra pictures is not a permitted photo or video in this story."; return false; }
+        if (more.Count > 0 && model.EndMs - model.StartMs < 1_000L * (more.Count + 1)) { error = "Give each picture at least one second: make the scene longer or choose fewer pictures."; return false; }
+        var sameVideo = visual.Id == audio.Id;
+        var clipStart = visual.Kind == MediaKind.Video && !sameVideo ? model.ClipStartMs : 0;
+        if (clipStart > 0 && visual.DurationMs > 0 && clipStart >= visual.DurationMs) { error = $"The clip start is after the end of “{visual.DisplayName}”."; return false; }
+        if (model.KeepClipSound && (visual.Kind != MediaKind.Video || !visual.HasSound || sameVideo))
+        { error = "“Keep the clip’s own sound” needs a video picture with sound that is not already the scene’s voice."; return false; }
+        var candidate = new SceneDraft(model.Title.Trim(), (model.Text ?? "").Trim(), model.TextOrigin, audio.Id, visual.Id, transcript?.Id, model.StartMs, model.EndMs, (model.Caption ?? "").Trim(), (model.Translation ?? "").Trim(),
+            more, model.KeepClipSound, clipStart);
         if (SourceFidelity.ValidateScene(candidate, transcript) is string fidelity) { error = fidelity; return false; }
         draft = candidate; return true;
     }
@@ -600,7 +611,7 @@ public sealed class StudioController(IProjectRepository projects, ICurrentUser c
 
     private static bool IsSourceWithdrawn(Project project, StoryRevision revision)
     {
-        var used = revision.Scenes.SelectMany(x => new[] { x.AudioAssetId, x.VisualAssetId }).ToHashSet();
+        var used = revision.Scenes.SelectMany(x => x.Pictures.Append(x.AudioAssetId)).ToHashSet();
         return project.MediaAssets.Any(x => used.Contains(x.Id) && x.PermissionStatus != PermissionStatus.Granted);
     }
 

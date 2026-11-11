@@ -970,8 +970,19 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<long>("ClipStartMs")
+                        .HasColumnType("bigint");
+
                     b.Property<long>("EndMs")
                         .HasColumnType("bigint");
+
+                    b.Property<bool>("KeepClipSound")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MorePictures")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int>("Order")
                         .HasColumnType("int");

@@ -60,6 +60,27 @@
         </div>
     </div>
 
+    <div class="surface slide-card" id="make-slide">
+        <div class="heading-with-help"><h2>Make a slide</h2><button type="button" class="help-button" data-help-title="Making a slide" data-help="Type a title — and, if you like, a line beneath it — and choose a colour. The studio makes a vertical picture you can use in any scene, for an opening title, a date, a place name or a closing thought. The words are yours and are recorded with the slide."><span aria-hidden="true">?</span><span class="visually-hidden">Help with slides</span></button></div>
+        <p class="field-help">A title card for an opening, a place, a date or a closing thought.</p>
+        <div class="slide-maker">
+            <form asp-controller="Media" asp-action="CreateSlide" asp-route-projectId="@project.Id" method="post" class="slide-form" data-slide-form>
+                <label for="SlideTitle">Title</label>
+                <input id="SlideTitle" name="Title" maxlength="80" required placeholder="e.g. I Dream for an Africa" data-slide-title />
+                <label for="SlideSubtitle">Line beneath <span class="field-help">optional</span></label>
+                <input id="SlideSubtitle" name="Subtitle" maxlength="140" placeholder="e.g. A poem by Caleb Makore" data-slide-subtitle />
+                <fieldset><legend>Colour</legend><div class="slide-themes">
+                    <label><input type="radio" name="Theme" value="0" checked data-slide-theme="night" /> <span class="swatch night">Night</span></label>
+                    <label><input type="radio" name="Theme" value="1" data-slide-theme="sand" /> <span class="swatch sand">Sand</span></label>
+                    <label><input type="radio" name="Theme" value="2" data-slide-theme="terracotta" /> <span class="swatch terracotta">Terracotta</span></label>
+                    <label><input type="radio" name="Theme" value="3" data-slide-theme="ochre" /> <span class="swatch ochre">Ochre</span></label>
+                </div></fieldset>
+                <button class="button-primary" type="submit">Make slide</button>
+            </form>
+            <div class="slide-preview night" aria-hidden="true" data-slide-preview><strong data-preview-title>Your title</strong><i></i><span data-preview-subtitle></span></div>
+        </div>
+    </div>
+
     <div class="surface upload-card">
         <div class="heading-with-help"><h2>Upload a file</h2><button type="button" class="help-button" data-help-title="Uploading sources" data-help="Upload an interview, voice note, family photograph or short video clip. Supported: JPEG, PNG, WebP, MP3, WAV, M4A/MP4, WebM and WebA, up to 20 MiB each. Files are stored privately and never published."><span aria-hidden="true">?</span><span class="visually-hidden">Help with uploading</span></button></div>
         <p class="field-help">Photos, short clips or audio. Up to 20 MiB each, stored privately.</p>

@@ -121,8 +121,17 @@ public sealed class TranscriptRevision
     public DateTimeOffset CreatedAtUtc { get; private set; }
 }
 
+/// <param name="MorePictureIds">Extra pictures shown in turn after the first, sharing the scene's voice (time split evenly).</param>
+/// <param name="KeepClipSound">Mix the first picture's own sound (a video) quietly under the voice.</param>
+/// <param name="ClipStartMs">Where a video picture starts playing, when its sound is not the scene's voice.</param>
 public sealed record SceneDraft(string Title, string Text, TextOrigin TextOrigin, Guid AudioAssetId,
-    Guid VisualAssetId, Guid? TranscriptRevisionId, long StartMs, long EndMs, string Caption, string Translation = "");
+    Guid VisualAssetId, Guid? TranscriptRevisionId, long StartMs, long EndMs, string Caption, string Translation = "",
+    IReadOnlyList<Guid>? MorePictureIds = null, bool KeepClipSound = false, long ClipStartMs = 0)
+{
+    public const int MaxPictures = 6;
+    /// <summary>Every picture in the order shown: the main picture first, then any extras.</summary>
+    public IReadOnlyList<Guid> Pictures => [VisualAssetId, .. MorePictureIds ?? []];
+}
 
 public sealed class StoryRevision
 {
@@ -147,7 +156,10 @@ public sealed class StoryRevision
     {
         var canonical = string.Join("\n", scenes.Select((x, i) => string.Join('|', i + 1, x.Title.Trim(), x.Text.Trim(),
             (int)x.TextOrigin, x.AudioAssetId, x.VisualAssetId, x.TranscriptRevisionId, x.StartMs, x.EndMs, x.Caption.Trim())
-            + (string.IsNullOrWhiteSpace(x.Translation) ? string.Empty : "|t:" + x.Translation.Trim())));
+            + (string.IsNullOrWhiteSpace(x.Translation) ? string.Empty : "|t:" + x.Translation.Trim())
+            + (x.MorePictureIds is { Count: > 0 } more ? "|p:" + string.Join(',', more) : string.Empty)
+            + (x.KeepClipSound ? "|s" : string.Empty)
+            + (x.ClipStartMs > 0 ? "|c:" + x.ClipStartMs : string.Empty)));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
     }
 }
@@ -162,9 +174,15 @@ public sealed class StoryScene
         if (text.Length > 4000 || caption.Length > 2000 || translation.Length > 2000) throw new ArgumentException("Scene text is too long.");
         if (draft.AudioAssetId == Guid.Empty || draft.VisualAssetId == Guid.Empty) throw new ArgumentException("Each scene needs real audio and a visual.");
         if (draft.StartMs < 0 || draft.EndMs <= draft.StartMs || draft.EndMs - draft.StartMs > 300_000) throw new ArgumentException("Scene timing is invalid.");
+        var more = (draft.MorePictureIds ?? []).ToList();
+        if (more.Count > SceneDraft.MaxPictures - 1 || more.Any(x => x == Guid.Empty) || more.Append(draft.VisualAssetId).Distinct().Count() != more.Count + 1)
+            throw new ArgumentException($"A scene can show up to {SceneDraft.MaxPictures} different pictures.");
+        if (draft.ClipStartMs is < 0 or > 300_000) throw new ArgumentException("The clip start is out of range.");
+        if (more.Count > 0 && (draft.EndMs - draft.StartMs) < 1_000L * (more.Count + 1)) throw new ArgumentException("Give each picture at least one second: make the scene longer or use fewer pictures.");
         Id = Guid.NewGuid(); StoryRevisionId = revisionId; Order = order; Title = title; Text = text; TextOrigin = draft.TextOrigin;
         AudioAssetId = draft.AudioAssetId; VisualAssetId = draft.VisualAssetId; TranscriptRevisionId = draft.TranscriptRevisionId;
         StartMs = draft.StartMs; EndMs = draft.EndMs; Caption = caption; Translation = translation;
+        MorePictures = string.Join(',', more); KeepClipSound = draft.KeepClipSound; ClipStartMs = draft.ClipStartMs;
     }
     public Guid Id { get; private set; }
     public Guid StoryRevisionId { get; private set; }
@@ -182,7 +200,15 @@ public sealed class StoryScene
     public string Translation { get; private set; } = string.Empty;
     /// <summary>The caption shown on screen: the creator's caption, or the scene text when no separate caption was written.</summary>
     public string EffectiveCaption => string.IsNullOrWhiteSpace(Caption) ? Text : Caption;
-    public SceneDraft ToDraft() => new(Title, Text, TextOrigin, AudioAssetId, VisualAssetId, TranscriptRevisionId, StartMs, EndMs, Caption, Translation);
+    /// <summary>Extra pictures, stored as a comma-separated list of ids (at most five).</summary>
+    public string MorePictures { get; private set; } = string.Empty;
+    public bool KeepClipSound { get; private set; }
+    public long ClipStartMs { get; private set; }
+    public IReadOnlyList<Guid> MorePictureIds => MorePictures.Length == 0 ? [] : MorePictures.Split(',').Select(Guid.Parse).ToList();
+    /// <summary>Every picture in the order shown: the main picture first, then any extras.</summary>
+    public IReadOnlyList<Guid> Pictures => [VisualAssetId, .. MorePictureIds];
+    public SceneDraft ToDraft() => new(Title, Text, TextOrigin, AudioAssetId, VisualAssetId, TranscriptRevisionId, StartMs, EndMs, Caption, Translation,
+        MorePictureIds, KeepClipSound, ClipStartMs);
 }
 
 public sealed class ReviewApproval

@@ -71,8 +71,25 @@ public sealed class FfmpegExportJobHandler(ApplicationDbContext db, IPrivateMedi
                     captionFile = $"caption-{index:D3}.txt";
                     await File.WriteAllTextAsync(Path.Combine(temp, captionFile), RenderText.Wrap(caption), new UTF8Encoding(false), ct);
                 }
-                var args = RenderText.SceneSegmentArgs(Path.GetFileName(visualPath), visual.Kind == MediaKind.Image, Path.GetFileName(audioPath),
-                    scene.StartMs, scene.EndMs, width, height, captionFile, font, segment, visualCarriesTheSound: visual.Id == audio.Id && visual.Kind == MediaKind.Video);
+                List<string> args;
+                if (scene.MorePictureIds.Count == 0 && !scene.KeepClipSound && scene.ClipStartMs == 0)
+                    args = RenderText.SceneSegmentArgs(Path.GetFileName(visualPath), visual.Kind == MediaKind.Image, Path.GetFileName(audioPath),
+                        scene.StartMs, scene.EndMs, width, height, captionFile, font, segment, visualCarriesTheSound: visual.Id == audio.Id && visual.Kind == MediaKind.Video);
+                else
+                {
+                    // Several pictures, a clip start or kept clip sound: each picture is copied once and shares the scene's time.
+                    var pictures = new List<RenderText.ScenePicture>();
+                    var k = 0;
+                    foreach (var pictureId in scene.Pictures)
+                    {
+                        var picture = project.MediaAssets.Single(x => x.Id == pictureId && x.PermissionStatus == PermissionStatus.Granted);
+                        var file = k == 0 ? visualPath : await CopyToTemp(picture.StorageKey, temp, $"visual-{index}-{k}", ct);
+                        var seek = picture.Kind != MediaKind.Video ? 0 : picture.Id == audio.Id ? scene.StartMs : k == 0 ? scene.ClipStartMs : 0;
+                        pictures.Add(new RenderText.ScenePicture(Path.GetFileName(file), picture.Kind == MediaKind.Image, seek)); k++;
+                    }
+                    args = RenderText.SceneCompositeArgs(pictures, Path.GetFileName(audioPath), scene.StartMs, scene.EndMs, width, height, captionFile, font, segment,
+                        keepFirstPictureSound: scene.KeepClipSound && visual.Kind == MediaKind.Video && visual.HasSound && visual.Id != audio.Id);
+                }
                 await BoundedProcessRunner.RunAsync(options.Value.FfmpegPath, args, TimeSpan.FromMinutes(5), ct, temp); segments.Add(segment);
                 var end = timeline + scene.EndMs - scene.StartMs;
                 RenderText.AppendCue(srt, index, timeline, end, caption);
@@ -129,14 +146,7 @@ public sealed class FfmpegExportJobHandler(ApplicationDbContext db, IPrivateMedi
         }
     }
 
-    private string ResolveFontFile()
-    {
-        var configured = options.Value.CaptionFontFile;
-        var path = string.IsNullOrWhiteSpace(configured) ? Path.Combine(AppContext.BaseDirectory, "Fonts", "Jost-SemiBold.ttf") : Path.GetFullPath(configured);
-        if (!File.Exists(path))
-            throw new InvalidOperationException($"Caption font not found at {Path.GetFileName(path)}. Rebuild so the bundled font is copied, or set Media:CaptionFontFile to a TTF/OTF file.");
-        return path;
-    }
+    private string ResolveFontFile() => FontLocator.Resolve(options.Value);
 
     private async Task MonitorCancellationAsync(Guid jobId, CancellationTokenSource renderCancellation, CancellationToken hostToken)
     {

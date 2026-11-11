@@ -106,6 +106,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         });
         builder.Entity<StoryScene>(entity =>
         {
+            entity.Property(x => x.MorePictures).HasMaxLength(200).IsRequired();
+            entity.Ignore(x => x.MorePictureIds); entity.Ignore(x => x.Pictures);
             entity.Property(x => x.Id).ValueGeneratedNever();
             entity.Property(x => x.Title).HasMaxLength(120).IsRequired();
             entity.Property(x => x.Text).HasMaxLength(4000).IsRequired();

@@ -77,7 +77,8 @@ public static class RevisionHistory
             if (old.Caption != scene.Caption) what.Add("caption");
             if (old.Translation != scene.Translation) what.Add("translation");
             if (old.StartMs != scene.StartMs || old.EndMs != scene.EndMs || old.AudioAssetId != scene.AudioAssetId) what.Add("voice timing");
-            if (old.VisualAssetId != scene.VisualAssetId) what.Add("picture");
+            if (old.VisualAssetId != scene.VisualAssetId || old.MorePictures != scene.MorePictures) what.Add(scene.MorePictureIds.Count > 0 ? "pictures" : "picture");
+            if (old.KeepClipSound != scene.KeepClipSound || old.ClipStartMs != scene.ClipStartMs) what.Add("clip sound and start");
             if (what.Count > 0) changes.Add($"Edited “{scene.Title}”: {string.Join(", ", what)}.");
         }
         var common = afterTitles.Where(t => beforeTitles.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList();

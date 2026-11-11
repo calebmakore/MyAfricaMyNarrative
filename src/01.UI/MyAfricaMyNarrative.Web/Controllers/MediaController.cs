@@ -9,7 +9,7 @@ namespace MyAfricaMyNarrative.Web.Controllers;
 
 [Authorize]
 public sealed class MediaController(IProjectRepository projects, ICurrentUser currentUser, IPrivateMediaStorage storage,
-    IMediaInspector inspector, IMediaProbe probe, IOptions<MediaOptions> options) : Controller
+    IMediaInspector inspector, IMediaProbe probe, IOptions<MediaOptions> options, ISlideRenderer slides) : Controller
 {
     private Guid UserId => currentUser.UserId ?? throw new InvalidOperationException("An authenticated user ID is required.");
 
@@ -47,6 +47,47 @@ public sealed class MediaController(IProjectRepository projects, ICurrentUser cu
         }
         catch { await storage.DeleteAsync(stored.Key, cancellationToken); throw; }
         return RedirectToAction("Details", "Projects", new { id = projectId });
+    }
+
+    /// <summary>
+    /// Makes a title slide from the creator's own words and saves it as a private picture source. It goes through the
+    /// same content inspection, probing and storage as an uploaded photo.
+    /// </summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateSlide(Guid projectId, SlideViewModel model, CancellationToken cancellationToken)
+    {
+        var project = await projects.FindOwnedAsync(projectId, UserId, cancellationToken);
+        if (project is null) return NotFound();
+        IActionResult Back(string? error = null)
+        { if (error is not null) TempData["Error"] = error; return RedirectToAction("Details", "Projects", new { id = projectId }, error is null ? "sources" : "make-slide"); }
+        if (!ModelState.IsValid || !Enum.IsDefined(model.Theme)) return Back("Give the slide a title (up to 80 characters) and choose a colour.");
+        if (project.MediaAssets.Count >= options.Value.MaxAssetsPerProject) return Back("This project has reached its private media limit.");
+        var work = Path.Combine(Path.GetTempPath(), "mamn-slide-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var png = await slides.RenderAsync(model.Title, model.Subtitle ?? "", model.Theme, work, cancellationToken);
+            await using var input = System.IO.File.OpenRead(png);
+            var inspected = await inspector.InspectAsync(input, cancellationToken);
+            if (inspected is null || inspected.Kind != MediaKind.Image) return Back("The slide could not be made. Please try again.");
+            var probed = await probe.ProbeAsync(input, cancellationToken);
+            if (project.MediaAssets.Sum(x => x.ByteLength) + input.Length > options.Value.MaxProjectBytes) return Back("This project has reached its private media limit.");
+            var stored = await storage.WriteOriginalAsync(input, options.Value.MaxUploadBytes, cancellationToken);
+            try
+            {
+                var words = string.IsNullOrWhiteSpace(model.Subtitle) ? $"“{model.Title.Trim()}”" : $"“{model.Title.Trim()}” / “{model.Subtitle.Trim()}”";
+                var credit = $"Slide made in the studio: {words}";
+                var asset = new MediaAsset(project.Id, stored.Key, "slide.png", $"Slide — {model.Title.Trim()}", stored.Sha256, inspected.ContentType, MediaKind.Image, stored.Length,
+                    credit.Length > 300 ? credit[..300] : credit, DateTimeOffset.UtcNow, probed.DurationMs, probed.Width, probed.Height);
+                project.MediaAssets.Add(asset);
+                await projects.SaveChangesAsync(cancellationToken);
+                TempData["Notice"] = "Slide saved as a picture. Use it in any scene in Shape.";
+            }
+            catch { await storage.DeleteAsync(stored.Key, cancellationToken); throw; }
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or InvalidDataException or System.ComponentModel.Win32Exception or TimeoutException)
+        { return Back("The slide could not be made: " + exception.Message); }
+        finally { try { Directory.Delete(work, true); } catch { } }
+        return Back();
     }
 
     [HttpPost, ValidateAntiForgeryToken]

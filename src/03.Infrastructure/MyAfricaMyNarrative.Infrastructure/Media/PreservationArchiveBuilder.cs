@@ -24,7 +24,7 @@ public static class PreservationArchiveBuilder
             checksums.Add($"{expectedSha}  {entryName}");
         }
 
-        var referencedIds = revision.Scenes.SelectMany(x => new[] { x.AudioAssetId, x.VisualAssetId }).Distinct().ToHashSet();
+        var referencedIds = revision.Scenes.SelectMany(x => x.Pictures.Append(x.AudioAssetId)).Distinct().ToHashSet();
         foreach (var asset in project.MediaAssets.Where(x => referencedIds.Contains(x.Id) && x.PermissionStatus == PermissionStatus.Granted))
             await AddStored($"originals/{asset.Id:N}{Path.GetExtension(asset.OriginalName)}", asset.StorageKey, asset.Sha256);
         await AddStored("film/approved.mp4", film.StorageKey, film.Sha256);
@@ -50,7 +50,7 @@ public static class PreservationArchiveBuilder
                 .Select(x => new { x.ReviewerName, x.Language, x.FluencyBasis, x.IsSelfReview, x.Notes, x.AttestedAtUtc }),
             CreatorDirection = intent is null ? null : new { intent.Audience, intent.Meaning, intent.Tone, intent.LocalContext, intent.ProtectedTerms, intent.TranslationLanguage, Note = "Supplied by the creator; not generated." },
             CreatorAnswers = project.CreatorQuestions.Where(x => x.AnsweredAtUtc is not null).OrderBy(x => x.CreatedAtUtc).Select(x => new { x.Field, x.Prompt, x.Answer, x.AnsweredAtUtc }),
-            Scenes = revision.Scenes.OrderBy(x => x.Order).Select(x => new { x.Order, x.Title, x.Text, TextOrigin = x.TextOrigin.ToString(), x.AudioAssetId, x.VisualAssetId, x.TranscriptRevisionId, x.StartMs, x.EndMs, x.Caption,
+            Scenes = revision.Scenes.OrderBy(x => x.Order).Select(x => new { x.Order, x.Title, x.Text, TextOrigin = x.TextOrigin.ToString(), x.AudioAssetId, x.VisualAssetId, x.MorePictureIds, x.KeepClipSound, x.ClipStartMs, x.TranscriptRevisionId, x.StartMs, x.EndMs, x.Caption,
                 Translation = x.Translation.Length == 0 ? null : new { Language = intent?.TranslationLanguage, Text = x.Translation, Status = languageReviewed ? "Reviewed" : "Draft" } }),
             Credits = new { Hash = creditsHash, Approved = creditsHash.Length > 0 && project.CreditsApprovals.Any(x => x.CreditsHash == creditsHash),
                 Entries = credits.Select(x => new { x.Order, x.Role, x.Name, x.SourceAssetId }) },

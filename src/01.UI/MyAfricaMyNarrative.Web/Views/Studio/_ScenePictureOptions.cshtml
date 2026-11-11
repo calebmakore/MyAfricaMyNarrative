@@ -1,0 +1,30 @@
+@model ScenePictureOptionsModel
+@{
+    var videos = Model.Visuals.Where(x => x.Kind == MediaKind.Video).ToList();
+    var open = Model.Selected.Count > 0 || Model.KeepClipSound || Model.ClipStartMs > 0;
+}
+<details class="scene-extras" open="@open">
+    <summary>Combine pictures and sound <span class="field-help">optional</span></summary>
+    <fieldset class="picture-pick">
+        <legend>More pictures under this voice</legend>
+        <p class="field-help">Shown in turn after the picture above, sharing the time evenly — up to 5 more. The caption stays on screen throughout.</p>
+        <div class="picture-pick-grid">
+        @foreach (var item in Model.Visuals)
+        {
+            var id = $"{Model.IdPrefix}-pic-{item.Id:N}";
+            <label class="picture-option" for="@id">
+                <input type="checkbox" id="@id" name="MorePictureIds" value="@item.Id" checked="@Model.Selected.Contains(item.Id)" />
+                <span>@item.DisplayName <span class="field-help">@(item.Kind == MediaKind.Video ? "video" : "photo")</span></span>
+            </label>
+        }
+        </div>
+    </fieldset>
+    @if (videos.Count > 0)
+    {
+        <fieldset class="clip-sound">
+            <legend>When the picture above is a video</legend>
+            <label>Start the video at (seconds)<input name="ClipStartSeconds" type="number" min="0" max="300" step="0.1" inputmode="decimal" value="@Seconds.FromMs(Model.ClipStartMs)" /><span class="field-help">Ignored when the video is also the scene’s voice — then it always starts with the words.</span></label>
+            <label class="check"><input type="checkbox" name="KeepClipSound" value="true" checked="@Model.KeepClipSound" /> <span>Keep the clip’s own sound quietly under the voice <span class="field-help">For a video with sound — crowd, music or the place. The voice stays clear on top.</span></span></label>
+        </fieldset>
+    }
+</details>

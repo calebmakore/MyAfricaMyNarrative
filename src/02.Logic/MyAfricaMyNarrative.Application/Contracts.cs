@@ -44,6 +44,15 @@ public interface IJobStore
     Task ReportProgressAsync(ClaimedJob claim, int step, int total, string note, CancellationToken cancellationToken);
 }
 
+public enum SlideTheme { Night, Sand, Terracotta, Ochre }
+
+/// <summary>Draws a vertical title slide (1080 × 1920 PNG) from creator-written text, for use as a picture source.</summary>
+public interface ISlideRenderer
+{
+    /// <returns>The path of the PNG written inside <paramref name="workFolder"/>.</returns>
+    Task<string> RenderAsync(string title, string subtitle, SlideTheme theme, string workFolder, CancellationToken cancellationToken);
+}
+
 public interface IExportJobHandler
 {
     Task<IReadOnlyList<ExportArtifact>> RenderAsync(ClaimedJob claim, CancellationToken cancellationToken);

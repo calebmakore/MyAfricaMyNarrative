@@ -1,3 +1,50 @@
+// After saving a source, show the Sources list. A same-page "#sources" link would only scroll, so reload in that case.
+window.mamnShowSources = url => {
+  // A fresh "saved" marker makes this a real page load (so the new source is listed) that still lands on #sources.
+  const target = new URL(url, location.href); target.searchParams.set('saved', String(Date.now())); target.hash = 'sources';
+  location.assign(target.href);
+};
+
+// Upload a source with visible progress beside the button that started it. Resolves with the final page URL;
+// rejects with the server's own error message (or a plain one) so it can be shown where the person is looking.
+window.mamnUpload = (url, data, button, what) => new Promise((resolve, reject) => {
+  let box = button.nextElementSibling;
+  if (!box?.classList.contains('upload-progress')) {
+    box = document.createElement('div'); box.className = 'upload-progress';
+    box.innerHTML = '<div class="upload-bar" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100"><span></span></div><p class="upload-progress-text" role="status" aria-live="polite"></p>';
+    button.after(box);
+  }
+  const bar = box.querySelector('.upload-bar'), fill = bar.querySelector('span'), text = box.querySelector('.upload-progress-text');
+  const size = (n, total) => total < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MiB`;
+  const show = (pct, message, waiting) => {
+    box.hidden = false; box.classList.remove('is-error'); bar.classList.toggle('is-waiting', !!waiting);
+    fill.style.width = `${pct}%`; bar.setAttribute('aria-valuenow', String(pct)); text.textContent = message;
+  };
+  const fail = message => { box.classList.add('is-error'); bar.classList.remove('is-waiting'); text.textContent = message; reject(new Error(message)); };
+  const original = button.dataset.label || button.textContent; button.dataset.label = original;
+  button.disabled = true; button.textContent = 'Saving…';
+  const restore = () => { button.disabled = false; button.textContent = original; };
+  show(0, `Starting to upload your ${what}…`);
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', url); xhr.withCredentials = true;
+  xhr.upload.addEventListener('progress', e => {
+    if (!e.lengthComputable) return;
+    const pct = Math.min(99, Math.round(100 * e.loaded / e.total));
+    show(pct, `Uploading… ${size(e.loaded, e.total)} of ${size(e.total, e.total)} (${pct}%)`);
+  });
+  xhr.upload.addEventListener('load', () => show(100, `Uploaded. Checking and saving your ${what} privately — this can take a few seconds…`, true));
+  xhr.addEventListener('load', () => {
+    const page = new DOMParser().parseFromString(xhr.responseText || '', 'text/html');
+    const error = page.querySelector('.notice.error')?.textContent?.trim();
+    if (xhr.status >= 400 || error) { restore(); fail(error || `The ${what} could not be saved (HTTP ${xhr.status}). Please try again.`); return; }
+    show(100, 'Saved. Opening your sources…'); resolve({ url: xhr.responseURL || url });
+  });
+  xhr.addEventListener('error', () => { restore(); fail(`The connection dropped while uploading your ${what}. Nothing was saved — please try again.`); });
+  xhr.addEventListener('timeout', () => { restore(); fail(`The upload took too long. Nothing was saved — try again on a stronger connection.`); });
+  xhr.timeout = 10 * 60 * 1000;
+  xhr.send(data);
+});
+
 (() => {
   const start = document.querySelector('#start-recording');
   const stop = document.querySelector('#stop-recording');
@@ -125,11 +172,7 @@
     if (token) formData.append('__RequestVerificationToken', token.value);
 
     try {
-      const response = await fetch(uploadForm.action, { method: 'POST', body: formData, credentials: 'same-origin' });
-      const html = await response.text();
-      const documentResult = new DOMParser().parseFromString(html, 'text/html');
-      const serverError = documentResult.querySelector('.notice.error')?.textContent?.trim();
-      if (!response.ok || serverError) throw new Error(serverError || 'The server could not save this recording.');
+      const response = await window.mamnUpload(uploadForm.action, formData, save, 'voice note');
       hasUnsavedRecording = false;
       recordingBlob = undefined;
       review.hidden = true;
@@ -142,12 +185,13 @@
       time.textContent = '00:00';
       state.textContent = 'Saved to Sources';
       status.textContent = 'Your recording was saved privately. Opening your Sources…';
-      window.location.assign(`${response.url.split('#')[0]}#sources`);
+      window.mamnShowSources(response.url);
     } catch (error) {
       save.disabled = false;
       start.disabled = false;
       state.textContent = 'Recording not saved';
       status.textContent = `${error.message || 'The voice note could not be saved.'} Your recording is still available below so you can try again.`;
+      save.disabled = false;
     }
   });
 
@@ -421,7 +465,7 @@
     if (!blob) return;
     if (!name.value.trim()) { name.focus(); status.textContent = 'Give this video a short name before saving it.'; return; }
     if (!permission.checked) { permission.focus(); status.textContent = 'Confirm you have permission to use this video before saving it.'; return; }
-    save.disabled = true; status.textContent = 'Saving your video privately…';
+    status.textContent = 'Saving your video privately — progress is shown under the Save button.';
     const extension = blob.type.includes('mp4') ? 'mp4' : 'webm';
     const data = new FormData();
     data.append('File', blob, `video-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`);
@@ -430,12 +474,9 @@
     data.append('PermissionConfirmed', 'true');
     const token = uploadForm.querySelector('input[name="__RequestVerificationToken"]'); if (token) data.append('__RequestVerificationToken', token.value);
     try {
-      const response = await fetch(uploadForm.action, { method: 'POST', body: data, credentials: 'same-origin' });
-      const result = new DOMParser().parseFromString(await response.text(), 'text/html');
-      const error = result.querySelector('.notice.error')?.textContent?.trim();
-      if (!response.ok || error) throw new Error(error || 'The server could not save this video.');
+      const response = await window.mamnUpload(uploadForm.action, data, save, 'video');
       unsaved = false; status.textContent = 'Saved privately. Opening your sources…';
-      window.location.assign(`${response.url.split('#')[0]}#sources`);
+      window.mamnShowSources(response.url);
     } catch (e) { save.disabled = false; status.textContent = `${e.message} Your video is still here so you can try again.`; }
   });
   window.addEventListener('beforeunload', e => { if (recorder?.state === 'recording' || unsaved) { e.preventDefault(); e.returnValue = ''; } });
@@ -447,3 +488,35 @@ document.addEventListener('submit', event => {
   const form = event.target.closest('form[data-confirm]');
   if (form && !window.confirm(form.dataset.confirm)) event.preventDefault();
 }, true);
+
+// "Upload a file": same visible progress instead of a silent full-page post.
+(() => {
+  const form = document.getElementById('source-upload-form');
+  const button = form?.querySelector('button[type="submit"]');
+  if (!form || !button || !window.XMLHttpRequest || !window.FormData) return;
+  form.addEventListener('submit', async event => {
+    if (event.defaultPrevented || !form.checkValidity()) return;
+    event.preventDefault();
+    try {
+      const file = form.querySelector('input[type="file"]')?.files?.[0];
+      const what = file?.type.startsWith('video/') ? 'video' : file?.type.startsWith('image/') ? 'picture' : 'recording';
+      const result = await window.mamnUpload(form.action, new FormData(form), button, what);
+      window.mamnShowSources(result.url);
+    } catch { /* the message is shown beside the button */ }
+  });
+})();
+
+// Make a slide: live preview of the title card while typing.
+(() => {
+  const form = document.querySelector('[data-slide-form]'); const preview = document.querySelector('[data-slide-preview]');
+  if (!form || !preview) return;
+  const title = form.querySelector('[data-slide-title]'), subtitle = form.querySelector('[data-slide-subtitle]');
+  const update = () => {
+    preview.querySelector('[data-preview-title]').textContent = title.value.trim() || 'Your title';
+    preview.querySelector('[data-preview-subtitle]').textContent = subtitle.value.trim();
+    const theme = form.querySelector('[data-slide-theme]:checked')?.dataset.slideTheme || 'night';
+    preview.className = `slide-preview ${theme}`;
+  };
+  form.addEventListener('input', update); form.addEventListener('change', update); update();
+  form.addEventListener('submit', () => { const b = form.querySelector('button[type="submit"]'); if (form.checkValidity()) { b.disabled = true; b.textContent = 'Making your slide…'; } });
+})();

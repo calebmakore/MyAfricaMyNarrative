@@ -14,8 +14,8 @@ Across Africa, powerful stories live in voice notes, notebooks and family photos
 
 | Step | What the storyteller does |
 |---|---|
-| **Record** | Record a voice note or a video (sound and picture together) in the browser, or upload audio, photos and clips. Every source is private; who supplied it and whether they agreed is recorded. |
-| **Shape** | Listen and type exactly what was said. Build scenes that are real clips of the recording, labelled as quotes, own words or AI-suggested words. Protect expressions that must stay as spoken, and explain local words once. A story coach finds the missing piece. |
+| **Record** | Record a voice note or a video (sound and picture together) in the browser, make a title slide from your own words, or upload audio, photos and clips. Every source is private; who supplied it and whether they agreed is recorded. |
+| **Shape** | Listen and type exactly what was said. Build scenes that are real clips of the recording, labelled as quotes, own words or AI-suggested words. Protect expressions that must stay as spoken, and explain local words once. Combine several pictures under one stretch of voice, start a video where you choose, or keep its own sound quietly underneath. A story coach finds the missing piece. |
 | **Make** | “Make it with what I have”: declare the phone, place, people and time you really have, and get a shoot plan that fits. When someone drops out, the new plan appears beside the old one with exactly what changed. |
 | **Export** | A plain-language checklist, then one click makes a vertical 1080 × 1920 MP4 with burned-in captions and a credits card, in the background with live progress. A preservation archive keeps the originals, words and film for the family. |
 
