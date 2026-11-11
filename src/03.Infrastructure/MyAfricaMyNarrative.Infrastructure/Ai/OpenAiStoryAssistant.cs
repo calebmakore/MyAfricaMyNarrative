@@ -35,7 +35,7 @@ public sealed class OpenAiStoryAssistant(HttpClient http, IOptions<AiOptions> co
 
         using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
-        if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"OpenAI story request failed with HTTP {(int)response.StatusCode}.");
+        if (!response.IsSuccessStatusCode) throw AiServiceException.FromStatus("suggest a scene order", (int)response.StatusCode);
         using var document = JsonDocument.Parse(body);
         var text = document.RootElement.GetProperty("output").EnumerateArray()
             .SelectMany(x => x.TryGetProperty("content", out var content) ? content.EnumerateArray().ToArray() : [])

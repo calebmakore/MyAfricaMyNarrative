@@ -6,6 +6,15 @@ namespace MyAfricaMyNarrative.UnitTests;
 public sealed class StudioTests
 {
     [Fact]
+    public void CreatorQuestionRecordsOnlyExplicitCreatorAnswer()
+    {
+        var question = new CreatorQuestion(Guid.NewGuid(), "Local context", "What context is missing?", DateTimeOffset.UtcNow);
+        Assert.Equal(string.Empty, question.Answer);
+        question.RecordAnswer("This came from the creator.", DateTimeOffset.UtcNow);
+        Assert.Equal("This came from the creator.", question.Answer);
+        Assert.NotNull(question.AnsweredAtUtc);
+    }
+    [Fact]
     public void Approval_is_bound_to_exact_immutable_snapshot()
     {
         var projectId = Guid.NewGuid(); var audio = Guid.NewGuid(); var visual = Guid.NewGuid();
@@ -50,5 +59,23 @@ public sealed class StudioTests
         Assert.Equal("chinyakare", intent.ProtectedTerms);
         intent.Update(intent.Audience, intent.Meaning, intent.Tone, intent.LocalContext, "chinyakare · mbuya", DateTimeOffset.UtcNow);
         Assert.Contains("chinyakare", intent.ProtectedTerms);
+    }
+
+    [Fact]
+    public void Removing_location_forces_resource_replanning_without_losing_other_limits()
+    {
+        var project = Guid.NewGuid(); var now = DateTimeOffset.UtcNow;
+        var phone = new ResourceItem(project, ResourceKind.Equipment, "One phone", "Available", now);
+        var location = new ResourceItem(project, ResourceKind.Location, "Community hall", "Saturday only", now);
+        var person = new ResourceItem(project, ResourceKind.Person, "One camera operator", "Two hours", now);
+        var firstPlan = new[] { phone, location, person }.Where(x => x.IsAvailable).Select(x => x.Id).ToArray();
+
+        location.SetAvailable(false);
+        var replanned = new[] { phone, location, person }.Where(x => x.IsAvailable).Select(x => x.Id).ToArray();
+
+        Assert.Contains(location.Id, firstPlan);
+        Assert.DoesNotContain(location.Id, replanned);
+        Assert.Contains(phone.Id, replanned);
+        Assert.Contains(person.Id, replanned);
     }
 }

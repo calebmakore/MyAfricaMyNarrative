@@ -9,7 +9,14 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="9.0.21" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Bundled caption/credits font (SIL Open Font License) shared with the Web UI typography. -->
+    <None Include="..\..\01.UI\MyAfricaMyNarrative.Web\wwwroot\fonts\jost\Jost-SemiBold.ttf" Link="Fonts\Jost-SemiBold.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\01.UI\MyAfricaMyNarrative.Web\wwwroot\fonts\jost\OFL.txt" Link="Fonts\OFL.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

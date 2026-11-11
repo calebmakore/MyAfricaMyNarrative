@@ -158,6 +158,11 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("TranslationLanguage")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -167,6 +172,104 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("CreatorIntents");
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.CreatorQuestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Answer")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("AnsweredAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Prompt")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CreatedAtUtc");
+
+                    b.ToTable("CreatorQuestions");
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.CreditEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<Guid?>("SourceAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Order");
+
+                    b.ToTable("CreditEntries");
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.CreditsApproval", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ApprovedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreditsHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CreditsHash")
+                        .IsUnique();
+
+                    b.ToTable("CreditsApprovals");
                 });
 
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.ExportArtifact", b =>
@@ -179,6 +282,11 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreditsHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<Guid>("JobId")
                         .HasColumnType("uniqueidentifier");
@@ -215,6 +323,49 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ExportArtifacts");
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.GlossaryEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AiDrafted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("ApprovedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Explanation")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Term")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Term")
+                        .IsUnique();
+
+                    b.ToTable("GlossaryEntry");
                 });
 
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.Job", b =>
@@ -261,6 +412,17 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .HasMaxLength(16000)
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ProgressNote")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("ProgressStep")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProgressTotal")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
@@ -269,6 +431,9 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
+
+                    b.Property<DateTimeOffset?>("StartedAtUtc")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("State")
                         .HasColumnType("int");
@@ -358,6 +523,17 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("ContributorNote")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("ContributorUse")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("ContributorUseRecordedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -368,6 +544,9 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("DurationMs")
                         .HasColumnType("bigint");
+
+                    b.Property<bool>("HasSound")
+                        .HasColumnType("bit");
 
                     b.Property<int?>("Height")
                         .HasColumnType("int");
@@ -408,6 +587,11 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
 
+                    b.Property<string>("SuppliedBy")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
                     b.Property<int?>("Width")
                         .HasColumnType("int");
 
@@ -421,6 +605,173 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                     b.ToTable("MediaAssets");
                 });
 
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.PilotFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Comment")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("HelpNote")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("IntentMatch")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NeededHelp")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique();
+
+                    b.ToTable("PilotFeedback");
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.ProductionPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("ApprovedOnce")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ChangeNote")
+                        .IsRequired()
+                        .HasMaxLength(1500)
+                        .HasColumnType("nvarchar(1500)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsFixture")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PlannedShootMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ResourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("ResourceSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StoryHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("StoryRevisionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(1500)
+                        .HasColumnType("nvarchar(1500)");
+
+                    b.Property<int?>("TimeBudgetMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("ProductionPlan");
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.ProductionPlanStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Approach")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ExistingAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Instruction")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("nvarchar(600)");
+
+                    b.Property<int>("OnScreenSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("ResourceIdList")
+                        .IsRequired()
+                        .HasMaxLength(800)
+                        .HasColumnType("nvarchar(800)");
+
+                    b.Property<Guid>("SceneId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SceneTitle")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("ShootMinutes")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId", "Order")
+                        .IsUnique();
+
+                    b.ToTable("ProductionPlanStep");
+                });
+
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.Project", b =>
                 {
                     b.Property<Guid>("Id")
@@ -429,6 +780,11 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Idea")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<bool>("IsArchived")
                         .HasColumnType("bit");
@@ -441,6 +797,9 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
+
+                    b.Property<int>("StoryType")
+                        .HasColumnType("int");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -474,6 +833,9 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .HasColumnType("bit");
 
                     b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Minutes")
                         .HasColumnType("int");
 
                     b.Property<string>("Name")
@@ -520,6 +882,51 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ReviewApprovals");
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.ShotPlanItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CapturedAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsSuggestion")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ResourceIdList")
+                        .IsRequired()
+                        .HasMaxLength(800)
+                        .HasColumnType("nvarchar(800)");
+
+                    b.Property<string>("SceneTitle")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CreatedAtUtc");
+
+                    b.ToTable("ShotPlanItems");
                 });
 
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.StoryRevision", b =>
@@ -590,6 +997,11 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("TranscriptRevisionId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Translation")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<Guid>("VisualAssetId")
                         .HasColumnType("uniqueidentifier");
@@ -688,6 +1100,53 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProjectId", "AssetId", "CreatedAtUtc");
 
                     b.ToTable("TranscriptRevisions");
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.TranscriptionProposal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DetectedLanguages")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(12000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "AssetId", "CreatedAtUtc");
+
+                    b.ToTable("TranscriptionProposals");
                 });
 
             modelBuilder.Entity("MyAfricaMyNarrative.Infrastructure.Identity.ApplicationRole", b =>
@@ -847,6 +1306,42 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.CreatorQuestion", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
+                        .WithMany("CreatorQuestions")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.CreditEntry", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
+                        .WithMany("Credits")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.CreditsApproval", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
+                        .WithMany("CreditsApprovals")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.GlossaryEntry", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
+                        .WithMany("Glossary")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.LanguageReview", b =>
                 {
                     b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
@@ -867,6 +1362,33 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.PilotFeedback", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
+                        .WithMany("PilotFeedback")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.ProductionPlan", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
+                        .WithMany("ProductionPlans")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.ProductionPlanStep", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.ProductionPlan", null)
+                        .WithMany("Steps")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.ResourceItem", b =>
                 {
                     b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
@@ -880,6 +1402,15 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
                         .WithMany("ReviewApprovals")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.ShotPlanItem", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
+                        .WithMany("Shots")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -921,23 +1452,53 @@ namespace MyAfricaMyNarrative.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.TranscriptionProposal", b =>
+                {
+                    b.HasOne("MyAfricaMyNarrative.Domain.Project", null)
+                        .WithMany("TranscriptionProposals")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyAfricaMyNarrative.Domain.ProductionPlan", b =>
+                {
+                    b.Navigation("Steps");
+                });
+
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.Project", b =>
                 {
                     b.Navigation("CreatorIntents");
+
+                    b.Navigation("CreatorQuestions");
+
+                    b.Navigation("Credits");
+
+                    b.Navigation("CreditsApprovals");
+
+                    b.Navigation("Glossary");
 
                     b.Navigation("LanguageReviews");
 
                     b.Navigation("MediaAssets");
 
+                    b.Navigation("PilotFeedback");
+
+                    b.Navigation("ProductionPlans");
+
                     b.Navigation("Resources");
 
                     b.Navigation("ReviewApprovals");
+
+                    b.Navigation("Shots");
 
                     b.Navigation("StoryRevisions");
 
                     b.Navigation("StudioProposals");
 
                     b.Navigation("TranscriptRevisions");
+
+                    b.Navigation("TranscriptionProposals");
                 });
 
             modelBuilder.Entity("MyAfricaMyNarrative.Domain.StoryRevision", b =>

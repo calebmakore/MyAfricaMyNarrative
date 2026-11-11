@@ -11,3 +11,6 @@ App_Data/
 .vs/
 .fresh-verification/
 appsettings.Local.json
+
+# Demo source media supplied by the creator (not committed)
+demo-media/

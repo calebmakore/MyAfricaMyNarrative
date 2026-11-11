@@ -1,0 +1,21 @@
+@model PlanStepViewModel
+@{ var step = Model.Step; }
+@if (step is null)
+{
+    <div class="plan-step is-empty"><p class="field-help">Not in this plan.</p></div>
+}
+else
+{
+    <div class="plan-step @(Model.Changed ? "is-changed" : "") @(step.Approach == PlanApproach.FilmNew ? "is-film" : "is-existing")">
+        <p class="plan-step-tags">
+            @if (step.Approach == PlanApproach.FilmNew) { <span class="status warn">Film new · @step.ShootMinutes min</span> }
+            else { <span class="status good">Use what you have</span> }
+            <span class="status">≈ @step.OnScreenSeconds s on screen</span>
+            @if (Model.Changed) { <span class="status info">Changed</span> }
+        </p>
+        <p class="plan-step-what">@step.Instruction</p>
+        <p class="plan-step-why"><strong>Why:</strong> @step.Purpose</p>
+        @if (step.ResourceIds.Count > 0) { <p class="field-help">Uses: @string.Join(", ", step.ResourceIds.Select(id => Model.ResourceNames.GetValueOrDefault(id, "a removed item")))</p> }
+        @if (step.ExistingAssetId is { } asset) { <p class="field-help">Picture: @Model.AssetNames.GetValueOrDefault(asset, "a removed picture")</p> }
+    </div>
+}

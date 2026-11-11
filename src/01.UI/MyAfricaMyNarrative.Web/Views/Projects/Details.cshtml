@@ -1,11 +1,139 @@
-@model Project
-@{ ViewData["Title"] = Model.Title; }
-@if (TempData["Error"] is string error) { <div class="notice error" role="alert">@error</div> }
-@if (TempData["Notice"] is string notice) { <div class="notice success" role="status">@notice <a asp-controller="Studio" asp-action="Shape" asp-route-id="@Model.Id">Continue to Shape</a></div> }
-<header class="page-header"><div><p class="eyebrow">Private project</p><h1>@Model.Title</h1></div><form asp-action="Rename" asp-route-id="@Model.Id" method="post" class="inline-form"><label class="visually-hidden" for="Title">New title</label><input id="Title" name="Title" value="@Model.Title" maxlength="120" required /><button type="submit">Rename</button></form></header>
-<nav class="studio-nav" aria-label="Studio stages"><a class="active" href="#record">Record</a><a asp-controller="Studio" asp-action="Shape" asp-route-id="@Model.Id">Shape</a><a asp-controller="Studio" asp-action="Make" asp-route-id="@Model.Id">Make</a><a asp-controller="Studio" asp-action="Export" asp-route-id="@Model.Id">Export</a></nav>
-<section id="record" class="studio-grid"><div class="surface"><p class="eyebrow">Record</p><div class="heading-with-help"><h2>Add an original source</h2><button type="button" class="help-button" data-help-title="Adding a source" data-help="A source is an original recording, photo or video used in your documentary. Record with this device or upload a supported file, confirm permission, and save it privately. Audio is needed for spoken story scenes; an image or video is needed for the picture."><span aria-hidden="true">?</span><span class="visually-hidden">Help with adding a source</span></button></div><p>JPEG, PNG, WebP, MP3, WAV, MP4/M4A, WebM or WebA. Up to 20 MiB each.</p>
-<form id="source-upload-form" asp-controller="Media" asp-action="Upload" asp-route-projectId="@Model.Id" method="post" enctype="multipart/form-data"><label for="DisplayName">Source name</label><input id="DisplayName" name="DisplayName" maxlength="120" placeholder="e.g. Grandmother's kitchen interview" required /><p class="field-help">Use a short name you will recognise when building scenes.</p><label for="File">Source file</label><input id="File" name="File" type="file" accept="image/jpeg,image/png,image/webp,audio/mpeg,audio/wav,audio/mp4,video/mp4,video/webm,audio/webm,audio/weba,.weba" required /><label for="Attribution">Attribution (optional)</label><input id="Attribution" name="Attribution" maxlength="300" /><label class="check"><input id="PermissionConfirmed" name="PermissionConfirmed" type="checkbox" value="true" required /> I confirm I have permission to use this source. This is an owner attestation, not independent verification.</label><button class="button-primary" type="submit">Upload privately</button></form>
-<details><summary>Record with this device</summary><div id="recording-indicator" class="recording-indicator" aria-live="polite"><span class="recording-dot" aria-hidden="true"></span><span id="recording-state">Ready to record</span><strong id="recording-time">00:00</strong></div><p id="recording-status" role="status">Recording needs a compatible secure browser and microphone permission. If unavailable or refused, use the file upload above.</p><div class="recording-controls"><button type="button" id="start-recording">Start microphone</button><button type="button" id="stop-recording" disabled>Stop and review</button></div><div id="recording-review" class="recording-review" hidden><audio id="recording-preview" controls></audio><label for="RecordingDisplayName">Recording name</label><input id="RecordingDisplayName" maxlength="120" placeholder="e.g. My childhood memory" required /><label class="check"><input id="RecordingPermissionConfirmed" type="checkbox" /> I confirm I have permission to use this recording. This is an owner attestation.</label><button class="button-primary" type="button" id="save-recording">Save recording to Sources</button></div></details></div>
-<aside id="sources" class="surface"><div class="section-heading"><h2>Sources</h2>@if (Model.MediaAssets.Any(x => x.PermissionStatus == PermissionStatus.Granted && x.Kind == MediaKind.Audio)) { <a class="button-primary" asp-controller="Studio" asp-action="Shape" asp-route-id="@Model.Id">Continue to Shape</a> }</div>@if (Model.MediaAssets.Count == 0) { <p>No sources uploaded yet. Record or upload one to begin Shape.</p> } else { <div class="source-list">@foreach (var asset in Model.MediaAssets) { <article><h3>@asset.DisplayName</h3><p class="field-help">Original file: @asset.OriginalName</p><p>@asset.Kind · @((asset.ByteLength / 1024d / 1024d).ToString("0.0")) MiB</p><p>@asset.PermissionDeclaration: <strong>@asset.PermissionStatus</strong></p><form class="source-rename" asp-controller="Media" asp-action="Rename" asp-route-projectId="@Model.Id" asp-route-id="@asset.Id" method="post"><label class="visually-hidden" for="source-name-@asset.Id">Rename @asset.DisplayName</label><input id="source-name-@asset.Id" name="DisplayName" value="@asset.DisplayName" maxlength="120" required /><button type="submit">Rename</button></form>@if (asset.PermissionStatus == PermissionStatus.Granted) { @if (asset.Kind == MediaKind.Image) { <img src="@Url.Action("Play", "Media", new { id = asset.Id })" alt="Uploaded source @asset.DisplayName" /> } else if (asset.Kind == MediaKind.Audio) { <audio controls preload="metadata" src="@Url.Action("Play", "Media", new { id = asset.Id })"></audio> } else { <video controls preload="metadata" src="@Url.Action("Play", "Media", new { id = asset.Id })"></video> }<form asp-controller="Media" asp-action="Withdraw" asp-route-projectId="@Model.Id" asp-route-id="@asset.Id" method="post"><button class="button-danger" type="submit">Withdraw permission</button></form> }</article> }</div> }</aside></section>
-<div class="project-actions"><form asp-action="Archive" asp-route-id="@Model.Id" method="post"><button type="submit">@(Model.IsArchived ? "Restore project" : "Archive project")</button></form><form asp-action="Delete" asp-route-id="@Model.Id" method="post" onsubmit="return confirm('Delete this project and its database records?');"><button class="button-danger" type="submit">Delete project</button></form></div>
+@model RecordViewModel
+@{
+    var project = Model.Project;
+    ViewData["Title"] = $"Record · {project.Title}"; ViewData["StageBar"] = true;
+    var hasAudio = project.MediaAssets.Any(x => x.PermissionStatus == PermissionStatus.Granted && x.CanProvideSound);
+    var hasVisual = project.MediaAssets.Any(x => x.PermissionStatus == PermissionStatus.Granted && x.Kind != MediaKind.Audio);
+}
+<partial name="_StudioHeader" model="new StudioHeaderModel(project, Model.Progress, StudioStage.Record)" />
+
+<details class="panel" id="basics" open="@(project.Idea.Length == 0 && project.StoryType == StoryType.Unspecified)">
+    <summary><span class="summary-text"><strong>Your starting idea</strong><span>@(project.Idea.Length > 0 ? (project.Idea.Length > 90 ? project.Idea[..90] + "…" : project.Idea) : "Paste notes or a few lines before you record — optional")</span></span>@if (project.StoryType != StoryType.Unspecified) { <span class="status">@StoryTypes.Label(project.StoryType)</span> }</summary>
+    <div class="panel-body">
+        <form asp-controller="Projects" asp-action="UpdateBasics" asp-route-id="@project.Id" method="post">
+            <fieldset><legend>What kind of story is it?</legend><div class="type-chips">@foreach (var t in StoryTypes.All) { <label class="type-chip"><input type="radio" name="StoryType" value="@((int)t.Type)" checked="@(project.StoryType == t.Type)" /> <span>@t.Label</span></label> }</div></fieldset>
+            <label>Your idea, in your own words<textarea name="Idea" maxlength="2000" rows="4" placeholder="e.g. How my grandmother's tailoring shaped the streetwear I make now">@project.Idea</textarea></label>
+            <button class="button-primary" type="submit">Save</button>
+        </form>
+    </div>
+</details>
+
+<section class="record-grid" id="add-source" aria-label="Add sources">
+    <div class="surface mic-card">
+        <div class="heading-with-help"><h2>Record your voice</h2><button type="button" class="help-button" data-help-title="Recording a voice note" data-help="Tap the microphone and tell your story in your own words, in any language. Stop when you are done, listen back, give it a name and save it. Recordings can be up to five minutes. If your browser cannot record, use “Upload a file” instead."><span aria-hidden="true">?</span><span class="visually-hidden">Help with recording</span></button></div>
+        <p class="field-help">Tell it in your own words and language. Up to five minutes.</p>
+        <div class="mic-stage">
+            <div id="recording-indicator" class="recording-indicator" aria-live="polite"><span class="recording-dot" aria-hidden="true"></span><span id="recording-state">Ready to record</span><strong id="recording-time">00:00</strong></div>
+            <button type="button" id="start-recording" class="mic-button">@Icons.Mic<span>Start</span></button>
+            <div class="recording-controls"><button type="button" id="stop-recording" class="button-secondary" disabled>Stop and listen</button></div>
+            <p id="recording-status" role="status">Your browser will ask to use the microphone. If it can’t, upload a file instead.</p>
+        </div>
+        <div id="recording-review" class="recording-review" hidden>
+            <audio id="recording-preview" controls></audio>
+            <label for="RecordingDisplayName">Name this recording</label>
+            <input id="RecordingDisplayName" maxlength="120" placeholder="e.g. Mbuya’s sewing story" required />
+            <label class="check"><input id="RecordingPermissionConfirmed" type="checkbox" /> <span>I have permission to use this recording. <span class="field-help">This is your own declaration, not independent verification.</span></span></label>
+            <button class="button-primary button-large" type="button" id="save-recording">Save to my sources</button>
+        </div>
+    </div>
+
+    <div class="surface mic-card video-card" id="record-video">
+        <div class="heading-with-help"><h2>Record a video</h2><button type="button" class="help-button" data-help-title="Recording a video" data-help="Film yourself, or someone who agreed, telling the story: sound and picture are saved together. Turn on the camera, hold your phone upright (films are vertical), and press Start. Stop when you are done, watch it back, name it and save it. Videos can be up to two minutes. In Shape you can check its words and use it as both the voice and the picture of a scene; the film keeps them in sync."><span aria-hidden="true">?</span><span class="visually-hidden">Help with recording a video</span></button></div>
+        <p class="field-help">Sound and picture together. Up to two minutes — hold your phone upright.</p>
+        <div class="camera-stage">
+            <video id="video-live" class="camera-view" autoplay muted playsinline hidden></video>
+            <div id="video-indicator" class="recording-indicator" aria-live="polite"><span class="recording-dot" aria-hidden="true"></span><span id="video-state">Camera off</span><strong id="video-time">00:00</strong></div>
+            <div class="recording-controls camera-controls">
+                <button type="button" id="video-camera" class="button-secondary">Turn on camera</button>
+                <button type="button" id="video-flip" class="button-quiet" hidden>Switch camera</button>
+                <button type="button" id="video-start" class="button-primary" disabled>Start recording</button>
+                <button type="button" id="video-stop" class="button-secondary" disabled>Stop and watch</button>
+            </div>
+            <p id="video-status" role="status">Your browser will ask to use the camera and microphone. If it can’t, upload a clip instead.</p>
+        </div>
+        <div id="video-review" class="recording-review" hidden>
+            <video id="video-preview" class="camera-view" controls playsinline></video>
+            <label for="VideoDisplayName">Name this video</label>
+            <input id="VideoDisplayName" maxlength="120" placeholder="e.g. Telling the story at home" />
+            <label class="check"><input id="VideoPermissionConfirmed" type="checkbox" /> <span>I have permission to use this video, and everyone who appears in it agreed. <span class="field-help">This is your own declaration, not independent verification.</span></span></label>
+            <button class="button-primary button-large" type="button" id="video-save">Save to my sources</button>
+        </div>
+    </div>
+
+    <div class="surface upload-card">
+        <div class="heading-with-help"><h2>Upload a file</h2><button type="button" class="help-button" data-help-title="Uploading sources" data-help="Upload an interview, voice note, family photograph or short video clip. Supported: JPEG, PNG, WebP, MP3, WAV, M4A/MP4, WebM and WebA, up to 20 MiB each. Files are stored privately and never published."><span aria-hidden="true">?</span><span class="visually-hidden">Help with uploading</span></button></div>
+        <p class="field-help">Photos, short clips or audio. Up to 20 MiB each, stored privately.</p>
+        <form id="source-upload-form" asp-controller="Media" asp-action="Upload" asp-route-projectId="@project.Id" method="post" enctype="multipart/form-data">
+            <label for="File">Choose a file</label>
+            <input id="File" name="File" type="file" accept="image/jpeg,image/png,image/webp,audio/mpeg,audio/wav,audio/mp4,video/mp4,video/webm,audio/webm,audio/weba,.weba" required />
+            <label for="DisplayName">Name it</label>
+            <input id="DisplayName" name="DisplayName" maxlength="120" placeholder="e.g. Grandmother’s workshop, 1987" required />
+            <details><summary>Someone else supplied it? (optional)</summary>
+                <label for="SuppliedBy">Who supplied it?</label><input id="SuppliedBy" name="SuppliedBy" maxlength="120" placeholder="e.g. My aunt Chipo" />
+                <fieldset><legend>Have they agreed to its use in this story?</legend><div class="origin-choice">
+                    <label><input type="radio" name="ContributorUse" value="1" checked /> <span>Not asked yet<span>Final export waits for their answer</span></span></label>
+                    <label><input type="radio" name="ContributorUse" value="2" /> <span>They agreed<span>Your record of their answer</span></span></label>
+                </div></fieldset>
+                <label for="Attribution">Credit line <span class="field-help">optional</span></label><input id="Attribution" name="Attribution" maxlength="300" placeholder="e.g. Photo by Tendai Moyo" />
+            </details>
+            <label class="check"><input id="PermissionConfirmed" name="PermissionConfirmed" type="checkbox" value="true" required /> <span>I have permission to use this file. <span class="field-help">Your own declaration, not independent verification.</span></span></label>
+            <button class="button-primary" type="submit">Upload privately</button>
+        </form>
+    </div>
+</section>
+
+<section id="sources" class="step">
+    <div class="section-heading">
+        <div><h2>Your sources</h2><p class="field-help">@(hasAudio ? "✓ Voice" : "Needs a voice recording") · @(hasVisual ? "✓ Picture" : "Needs a photo or video")</p></div>
+        @if (hasAudio && hasVisual) { <a class="button-primary" asp-controller="Studio" asp-action="Shape" asp-route-id="@project.Id">Continue to Shape →</a> }
+    </div>
+    @if (project.MediaAssets.Count == 0)
+    {
+        <div class="empty-state"><h3>Nothing here yet</h3><p>Record your voice or upload a photo to begin. You’ll need at least one of each.</p></div>
+    }
+    else
+    {
+        <div class="source-list">
+        @foreach (var asset in project.MediaAssets.OrderBy(x => x.CreatedAtUtc))
+        {
+            var granted = asset.PermissionStatus == PermissionStatus.Granted;
+            <article class="source-card @(granted ? "" : "withdrawn")">
+                @if (!granted) { <div class="source-media audio"><span class="status bad">Permission withdrawn</span></div> }
+                else if (asset.Kind == MediaKind.Image) { <div class="source-media"><img src="@Url.Action("Play", "Media", new { id = asset.Id })" alt="@asset.DisplayName" loading="lazy" /></div> }
+                else if (asset.Kind == MediaKind.Audio) { <div class="source-media audio"><audio controls preload="metadata" src="@Url.Action("Play", "Media", new { id = asset.Id })" aria-label="Play @asset.DisplayName"></audio></div> }
+                else { <div class="source-media"><video controls preload="metadata" src="@Url.Action("Play", "Media", new { id = asset.Id })" aria-label="Play @asset.DisplayName"></video></div> }
+                <div class="source-body">
+                    <h3>@asset.DisplayName</h3>
+                    <p><span class="status @(asset.Kind == MediaKind.Audio ? "info" : "warn")">@(asset.Kind == MediaKind.Audio ? "Voice" : asset.Kind == MediaKind.Image ? "Photo" : asset.HasSound ? "Video with sound" : "Video")</span> @(asset.DurationMs > 0 ? $"{asset.DurationMs / 1000d:0.#} s · " : "")@((asset.ByteLength / 1024d / 1024d).ToString("0.0")) MiB</p>
+                    @if (!string.IsNullOrWhiteSpace(asset.Attribution)) { <p>@asset.Attribution</p> }
+                    <p><span class="status status-wrap @(asset.ContributorUse switch { ContributorUse.Agreed => "good", ContributorUse.Declined => "bad", ContributorUse.NotYetAsked => "warn", _ => "" })">@ContributorRules.Describe(asset)</span></p>
+                    <details><summary>Manage</summary>
+                        <form class="inline-form" asp-controller="Media" asp-action="Rename" asp-route-projectId="@project.Id" asp-route-id="@asset.Id" method="post"><label class="visually-hidden" for="source-name-@asset.Id">New name for @asset.DisplayName</label><input id="source-name-@asset.Id" name="DisplayName" value="@asset.DisplayName" maxlength="120" required /><button type="submit" class="button-quiet">Rename</button></form>
+                        <p class="field-help">Original file: @asset.OriginalName · @asset.PermissionDeclaration</p>
+                        <form asp-controller="Media" asp-action="SetContributor" asp-route-projectId="@project.Id" asp-route-id="@asset.Id" method="post" class="contributor-form">
+                            <label>Supplied by <span class="field-help">leave empty if it is yours</span><input name="SuppliedBy" value="@asset.SuppliedBy" maxlength="120" /></label>
+                            <label>Their answer<select name="ContributorUse">
+                                <option value="1" selected="@(asset.ContributorUse is ContributorUse.NotYetAsked or ContributorUse.OwnMaterial)">Not asked yet</option>
+                                <option value="2" selected="@(asset.ContributorUse == ContributorUse.Agreed)">Agreed to this use</option>
+                                <option value="3" selected="@(asset.ContributorUse == ContributorUse.Declined)">Declined</option>
+                            </select></label>
+                            <label>Note <span class="field-help">optional, e.g. “Agreed by phone, 9 Nov”</span><input name="Note" value="@asset.ContributorNote" maxlength="300" /></label>
+                            <button type="submit" class="button-quiet">Save contributor answer</button>
+                            <p class="field-help">This is your record of what they said — not independent verification.</p>
+                        </form>
+                        @if (granted) { <form asp-controller="Media" asp-action="Withdraw" asp-route-projectId="@project.Id" asp-route-id="@asset.Id" method="post"><button class="button-danger button-quiet" type="submit">Withdraw permission</button></form> }
+                    </details>
+                </div>
+            </article>
+        }
+        </div>
+    }
+</section>
+
+<details class="panel">
+    <summary><span class="summary-text"><strong>Project settings</strong><span>Rename, archive or delete this story</span></span></summary>
+    <div class="panel-body">
+        <form class="inline-form" asp-action="Rename" asp-route-id="@project.Id" method="post"><label class="visually-hidden" for="Title">Story title</label><input id="Title" name="Title" value="@project.Title" maxlength="120" required /><button type="submit">Rename story</button></form>
+        <div class="project-actions"><form asp-action="Archive" asp-route-id="@project.Id" method="post"><button type="submit">@(project.IsArchived ? "Restore project" : "Archive project")</button></form><form asp-action="Delete" asp-route-id="@project.Id" method="post" data-confirm="Delete this project, its records and its private source files? This cannot be undone."><button class="button-danger" type="submit">Delete project</button></form></div>
+    </div>
+</details>

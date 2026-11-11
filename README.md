@@ -63,8 +63,9 @@ Keep credentials out of Git; configuration examples contain placeholders only.
 
 ## First finished demonstration
 
-A creator records/uploads sources, reviews transcript/timing, protects words, arranges scenes,
-changes available resources, approves the cut and downloads a real 60–90 second vertical film.
+A creator records/uploads sources, reviews transcript/timing, protects words, arranges and edits scenes,
+adds optional translated captions, plans shots with available resources, approves the cut and credits,
+and downloads a real 60–90 second vertical film with burned-in captions and an end credits card.
 They can keep originals, reviewed transcripts, context, captions and credits in a portable archive.
 Use [acceptance.md](acceptance.md) to assess this behaviour.
 

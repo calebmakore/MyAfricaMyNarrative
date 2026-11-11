@@ -56,7 +56,7 @@ public sealed class OpenAiStoryAssistantTests
         var request = new StoryAssistantRequest(
             [new(Guid.NewGuid(), 1, "One"), new(Guid.NewGuid(), 2, "Two")], "A", "M", "T", "L", "P");
 
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => assistant.ProposeOrderAsync(request, CancellationToken.None));
+        var error = await Assert.ThrowsAnyAsync<InvalidOperationException>(() => assistant.ProposeOrderAsync(request, CancellationToken.None));
         Assert.Contains("HTTP 400", error.Message);
         Assert.DoesNotContain("secret provider diagnostic", error.Message);
     }

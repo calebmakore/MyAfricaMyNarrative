@@ -1,0 +1,17 @@
+@{
+    var code = (int)(ViewData["Code"] ?? 404);
+    var notFound = code == 404;
+    ViewData["Title"] = notFound ? "Page not found" : "Something went wrong";
+}
+<section class="status-page">
+    <p class="eyebrow">@(notFound ? "404" : code.ToString())</p>
+    <h1>@(notFound ? "We couldn’t find that page." : "That didn’t work.")</h1>
+    <p class="hero-copy">@(notFound
+        ? "The link may be old, or the story may belong to another account. Your own stories are always on My stories."
+        : "Nothing you made has been lost. Go back and try again; if it keeps happening, try again in a few minutes.")</p>
+    <div class="inline-actions">
+        @if (User.Identity?.IsAuthenticated == true) { <a class="button button-primary" asp-controller="Projects" asp-action="Index">Go to My stories</a> }
+        else { <a class="button button-primary" asp-controller="Home" asp-action="Index">Go to the home page</a> }
+        <a class="button button-quiet" asp-controller="Home" asp-action="Help">Lessons &amp; Help</a>
+    </div>
+</section>

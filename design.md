@@ -2,6 +2,12 @@
 
 ## Direction
 
+**Current (2026-11-10, creator's choice):** bold and African-inspired — warm sand canvas, near-black night surfaces,
+terracotta primary actions, ochre highlights, indigo secondary, malachite for done states, a subtle
+diamond-dot texture on night surfaces and a geometric sun emblem, self-hosted Jost. The triangle pattern strip
+(header, footer, project cards, sign-in panel, phone stage bar) was removed at the creator's request on 2026-11-10. Tokens live at the top of `wwwroot/css/site.css`.
+The original restrained direction below is kept for reference.
+
 A contemporary editorial studio. Give the creator's media and words priority.
 Use specific creator-supplied places and context rather than a universal “African aesthetic”.
 

@@ -1,0 +1,43 @@
+@model StudioHeaderModel
+@{
+    ViewData["StageBar"] = true;
+    var stages = new[] { (StudioStage.Record, "Record", "Collect your voice and pictures"), (StudioStage.Shape, "Shape", "Choose words and scenes"), (StudioStage.Make, "Make", "Plan with what you have"), (StudioStage.Export, "Export", "Credits and your film") };
+    string Url(StudioStage stage, string? anchor = null) => (stage == StudioStage.Record
+        ? this.Url.Action("Details", "Projects", new { id = Model.Project.Id })
+        : this.Url.Action(stage.ToString(), "Studio", new { id = Model.Project.Id })) + (anchor is null ? "" : "#" + anchor);
+    var next = Model.Progress.Next;
+    var stageTasks = Model.Progress.Tasks.Where(x => x.Stage == Model.Active).ToList();
+}
+@if (TempData["Error"] is string error) { <div class="notice error" role="alert">@error</div> }
+@if (TempData["Notice"] is string notice) { <div class="notice success" role="status">@notice</div> }
+<section class="studio-header" aria-labelledby="studio-title">
+    <div class="studio-title">
+        <div><p class="eyebrow">Your story</p><h1 id="studio-title">@Model.Project.Title</h1></div>
+        <div class="progress-meter" aria-label="Story progress"><span>@Model.Progress.CompletedCount of @Model.Progress.Tasks.Count steps done</span><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Model.Progress.Percent" aria-label="Story progress"><span style="width:@(Model.Progress.Percent)%"></span></div></div>
+    </div>
+    <ol class="stepper" aria-label="Studio stages">
+    @foreach (var (stage, label, hint) in stages)
+    {
+        var done = Model.Progress.IsStageComplete(stage); var current = stage == Model.Active;
+        <li><a href="@Url(stage)" class="@(done ? "is-done" : "")" aria-current="@(current ? "page" : null)"><span class="stage-icon">@(done && !current ? Icons.Check : Icons.ForStage(stage))</span><span>@label<span class="stage-state">@(current ? "You are here" : done ? "Done" : hint)</span></span></a></li>
+    }
+    </ol>
+    @if (stageTasks.Count > 0)
+    {
+        <ul class="stage-tasks" aria-label="@Model.Active checklist">@foreach (var task in stageTasks) { <li class="@(task.Done ? "done" : "")"><span class="visually-hidden">@(task.Done ? "Done:" : "To do:")</span> @task.Title</li> }</ul>
+    }
+    @if (next is null)
+    {
+        <div class="next-step is-finished"><span class="next-step-icon">@Icons.Check</span><div class="next-step-copy"><p class="eyebrow">All steps done</p><strong>Your film is ready.</strong><span>Download it, keep the preservation archive, and share it when you choose.</span></div><a class="button-primary" href="@Url(StudioStage.Export, "film")">See your film</a></div>
+    }
+    else
+    {
+        <div class="next-step"><span class="next-step-icon" aria-hidden="true">→</span><div class="next-step-copy"><p class="eyebrow">Next step · @next.Stage</p><strong>@next.Title</strong><span>@next.Hint</span></div><a class="button-primary" href="@Url(next.Stage, next.Anchor)">@(next.Stage == Model.Active ? "Show me" : $"Go to {next.Stage}")</a></div>
+    }
+</section>
+<nav class="stage-bar" aria-label="Studio stages">
+@foreach (var (stage, label, _) in stages)
+{
+    <a href="@Url(stage)" class="@(Model.Progress.IsStageComplete(stage) ? "is-done" : "")" aria-current="@(stage == Model.Active ? "page" : null)">@Icons.ForStage(stage)<span>@label</span></a>
+}
+</nav>

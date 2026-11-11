@@ -3,11 +3,52 @@ using System.Text;
 
 namespace MyAfricaMyNarrative.Domain;
 
-public enum TextOrigin { SourceQuotation, CreatorWritten }
+/// <summary>Who wrote the words: the speaker on the recording, the creator, or an AI suggestion the creator approved by keeping it in an approved revision.</summary>
+public enum TextOrigin { SourceQuotation, CreatorWritten, AiSuggested }
 public enum ResourceKind { Equipment, Person, Location, Time, Budget }
-public enum ArtifactKind { PreviewVideo, FinalVideo, Captions, PreservationArchive }
-public enum ProposalKind { StoryOrder, ResourcePlan }
+public enum ArtifactKind { PreviewVideo, FinalVideo, Captions, PreservationArchive, TranslatedCaptions }
+public enum ProposalKind { StoryOrder, ResourcePlan, StoryStructure, GlossarySuggestions }
 public enum ProposalStatus { Pending, Applied, Rejected }
+public enum TranscriptionProposalStatus { NeedsTiming, Reviewed, Rejected }
+
+public sealed class TranscriptionProposal
+{
+    private TranscriptionProposal() { }
+    public TranscriptionProposal(Guid projectId, Guid assetId, string text, string detectedLanguages, string provider, string model, DateTimeOffset now)
+    {
+        text = text.Trim(); detectedLanguages = detectedLanguages.Trim();
+        if (projectId == Guid.Empty || assetId == Guid.Empty || text.Length is < 1 or > 12000) throw new ArgumentException("A project, source and bounded transcript are required.");
+        Id = Guid.NewGuid(); ProjectId = projectId; AssetId = assetId; Text = text; DetectedLanguages = detectedLanguages;
+        Provider = provider.Trim(); Model = model.Trim(); Status = TranscriptionProposalStatus.NeedsTiming; CreatedAtUtc = now;
+    }
+    public Guid Id { get; private set; }
+    public Guid ProjectId { get; private set; }
+    public Guid AssetId { get; private set; }
+    public string Text { get; private set; } = string.Empty;
+    public string DetectedLanguages { get; private set; } = string.Empty;
+    public string Provider { get; private set; } = string.Empty;
+    public string Model { get; private set; } = string.Empty;
+    public TranscriptionProposalStatus Status { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset? ReviewedAtUtc { get; private set; }
+    public void Review(DateTimeOffset now) { if (Status != TranscriptionProposalStatus.NeedsTiming) throw new InvalidOperationException("Transcription proposal was already reviewed."); Status = TranscriptionProposalStatus.Reviewed; ReviewedAtUtc = now; }
+    public void Reject(DateTimeOffset now) { if (Status != TranscriptionProposalStatus.NeedsTiming) throw new InvalidOperationException("Transcription proposal was already reviewed."); Status = TranscriptionProposalStatus.Rejected; ReviewedAtUtc = now; }
+}
+
+public sealed class CreatorQuestion
+{
+    private CreatorQuestion() { }
+    public CreatorQuestion(Guid projectId, string field, string prompt, DateTimeOffset now)
+    { Id = Guid.NewGuid(); ProjectId = projectId; Field = field.Trim(); Prompt = prompt.Trim(); CreatedAtUtc = now; }
+    public Guid Id { get; private set; }
+    public Guid ProjectId { get; private set; }
+    public string Field { get; private set; } = string.Empty;
+    public string Prompt { get; private set; } = string.Empty;
+    public string Answer { get; private set; } = string.Empty;
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset? AnsweredAtUtc { get; private set; }
+    public void RecordAnswer(string answer, DateTimeOffset now) { answer = answer.Trim(); if (answer.Length is < 1 or > 1000) throw new ArgumentException("Answer must be 1–1000 characters."); Answer = answer; AnsweredAtUtc = now; }
+}
 
 public sealed class CreatorIntent
 {
@@ -21,13 +62,16 @@ public sealed class CreatorIntent
     public string Tone { get; private set; } = string.Empty;
     public string LocalContext { get; private set; } = string.Empty;
     public string ProtectedTerms { get; private set; } = string.Empty;
+    /// <summary>Optional second caption language (for example English beside Shona). Translations stay drafts until a fluent review is recorded.</summary>
+    public string TranslationLanguage { get; private set; } = string.Empty;
     public DateTimeOffset UpdatedAtUtc { get; private set; }
+    public void SetTranslationLanguage(string? value, DateTimeOffset now) { TranslationLanguage = Clean(value, 40); UpdatedAtUtc = now; }
     public void Update(string audience, string meaning, string tone, string localContext, string protectedTerms, DateTimeOffset now)
     {
         Audience = Clean(audience, 500); Meaning = Clean(meaning, 1000); Tone = Clean(tone, 200);
         LocalContext = Clean(localContext, 1500); ProtectedTerms = Clean(protectedTerms, 1000); UpdatedAtUtc = now;
     }
-    private static string Clean(string value, int max) { value = value.Trim(); if (value.Length > max) throw new ArgumentException("Creator intention field is too long."); return value; }
+    private static string Clean(string? value, int max) { value = (value ?? string.Empty).Trim(); if (value.Length > max) throw new ArgumentException("Creator intention field is too long."); return value; }
 }
 
 public sealed class StudioProposal
@@ -78,7 +122,7 @@ public sealed class TranscriptRevision
 }
 
 public sealed record SceneDraft(string Title, string Text, TextOrigin TextOrigin, Guid AudioAssetId,
-    Guid VisualAssetId, Guid? TranscriptRevisionId, long StartMs, long EndMs, string Caption);
+    Guid VisualAssetId, Guid? TranscriptRevisionId, long StartMs, long EndMs, string Caption, string Translation = "");
 
 public sealed class StoryRevision
 {
@@ -102,7 +146,8 @@ public sealed class StoryRevision
     private static string ComputeHash(IEnumerable<SceneDraft> scenes)
     {
         var canonical = string.Join("\n", scenes.Select((x, i) => string.Join('|', i + 1, x.Title.Trim(), x.Text.Trim(),
-            (int)x.TextOrigin, x.AudioAssetId, x.VisualAssetId, x.TranscriptRevisionId, x.StartMs, x.EndMs, x.Caption.Trim())));
+            (int)x.TextOrigin, x.AudioAssetId, x.VisualAssetId, x.TranscriptRevisionId, x.StartMs, x.EndMs, x.Caption.Trim())
+            + (string.IsNullOrWhiteSpace(x.Translation) ? string.Empty : "|t:" + x.Translation.Trim())));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
     }
 }
@@ -112,14 +157,14 @@ public sealed class StoryScene
     private StoryScene() { }
     internal StoryScene(Guid revisionId, int order, SceneDraft draft)
     {
-        var title = draft.Title.Trim(); var text = draft.Text.Trim(); var caption = draft.Caption.Trim();
+        var title = draft.Title.Trim(); var text = draft.Text.Trim(); var caption = draft.Caption.Trim(); var translation = (draft.Translation ?? string.Empty).Trim();
         if (title.Length is < 1 or > 120) throw new ArgumentException("Scene title must be 1–120 characters.");
-        if (text.Length > 4000 || caption.Length > 2000) throw new ArgumentException("Scene text is too long.");
+        if (text.Length > 4000 || caption.Length > 2000 || translation.Length > 2000) throw new ArgumentException("Scene text is too long.");
         if (draft.AudioAssetId == Guid.Empty || draft.VisualAssetId == Guid.Empty) throw new ArgumentException("Each scene needs real audio and a visual.");
         if (draft.StartMs < 0 || draft.EndMs <= draft.StartMs || draft.EndMs - draft.StartMs > 300_000) throw new ArgumentException("Scene timing is invalid.");
         Id = Guid.NewGuid(); StoryRevisionId = revisionId; Order = order; Title = title; Text = text; TextOrigin = draft.TextOrigin;
         AudioAssetId = draft.AudioAssetId; VisualAssetId = draft.VisualAssetId; TranscriptRevisionId = draft.TranscriptRevisionId;
-        StartMs = draft.StartMs; EndMs = draft.EndMs; Caption = caption;
+        StartMs = draft.StartMs; EndMs = draft.EndMs; Caption = caption; Translation = translation;
     }
     public Guid Id { get; private set; }
     public Guid StoryRevisionId { get; private set; }
@@ -133,6 +178,11 @@ public sealed class StoryScene
     public long StartMs { get; private set; }
     public long EndMs { get; private set; }
     public string Caption { get; private set; } = string.Empty;
+    /// <summary>Creator-supplied translated caption. It is a draft until a language review is recorded for the exact snapshot.</summary>
+    public string Translation { get; private set; } = string.Empty;
+    /// <summary>The caption shown on screen: the creator's caption, or the scene text when no separate caption was written.</summary>
+    public string EffectiveCaption => string.IsNullOrWhiteSpace(Caption) ? Text : Caption;
+    public SceneDraft ToDraft() => new(Title, Text, TextOrigin, AudioAssetId, VisualAssetId, TranscriptRevisionId, StartMs, EndMs, Caption, Translation);
 }
 
 public sealed class ReviewApproval
@@ -177,12 +227,15 @@ public sealed class LanguageReview
 public sealed class ResourceItem
 {
     private ResourceItem() { }
-    public ResourceItem(Guid projectId, ResourceKind kind, string name, string availability, DateTimeOffset now)
+    public ResourceItem(Guid projectId, ResourceKind kind, string name, string availability, DateTimeOffset now, int? minutes = null)
     {
         name = name.Trim(); availability = availability.Trim();
         if (name.Length is < 1 or > 120 || availability.Length > 300) throw new ArgumentException("Resource details are invalid.");
-        Id = Guid.NewGuid(); ProjectId = projectId; Kind = kind; Name = name; Availability = availability; IsAvailable = true; CreatedAtUtc = now;
+        if (minutes is not null && (kind != ResourceKind.Time || minutes is < 5 or > 10080)) throw new ArgumentException("Only time can have minutes, between 5 minutes and 7 days.");
+        Id = Guid.NewGuid(); ProjectId = projectId; Kind = kind; Name = name; Availability = availability; IsAvailable = true; CreatedAtUtc = now; Minutes = minutes;
     }
+    /// <summary>For time resources: how many minutes of filming time the creator really has.</summary>
+    public int? Minutes { get; private set; }
     public Guid Id { get; private set; }
     public Guid ProjectId { get; private set; }
     public ResourceKind Kind { get; private set; }
@@ -197,13 +250,15 @@ public sealed class ExportArtifact
 {
     private ExportArtifact() { }
     public ExportArtifact(Guid projectId, Guid jobId, Guid storyRevisionId, string snapshotHash, ArtifactKind kind,
-        string storageKey, string sha256, long byteLength, DateTimeOffset now)
-    { Id = Guid.NewGuid(); ProjectId = projectId; JobId = jobId; StoryRevisionId = storyRevisionId; SnapshotHash = snapshotHash; Kind = kind; StorageKey = storageKey; Sha256 = sha256; ByteLength = byteLength; CreatedAtUtc = now; }
+        string storageKey, string sha256, long byteLength, DateTimeOffset now, string creditsHash = "")
+    { Id = Guid.NewGuid(); ProjectId = projectId; JobId = jobId; StoryRevisionId = storyRevisionId; SnapshotHash = snapshotHash; Kind = kind; StorageKey = storageKey; Sha256 = sha256; ByteLength = byteLength; CreatedAtUtc = now; CreditsHash = creditsHash ?? string.Empty; }
     public Guid Id { get; private set; }
     public Guid ProjectId { get; private set; }
     public Guid JobId { get; private set; }
     public Guid StoryRevisionId { get; private set; }
     public string SnapshotHash { get; private set; } = string.Empty;
+    /// <summary>Hash of the approved credits rendered into this artifact; empty for artifacts made before credits existed.</summary>
+    public string CreditsHash { get; private set; } = string.Empty;
     public ArtifactKind Kind { get; private set; }
     public string StorageKey { get; private set; } = string.Empty;
     public string Sha256 { get; private set; } = string.Empty;

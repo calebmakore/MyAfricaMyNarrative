@@ -22,6 +22,12 @@ public sealed class Job
     public string? LeaseOwner { get; private set; }
     public Guid? AttemptToken { get; private set; }
     public DateTimeOffset? LeaseExpiresAtUtc { get; private set; }
+    /// <summary>Real render progress reported by the running attempt: step N of a known total, with a short plain note.</summary>
+    public int ProgressStep { get; private set; }
+    public int ProgressTotal { get; private set; }
+    public string ProgressNote { get; private set; } = string.Empty;
+    public DateTimeOffset? StartedAtUtc { get; private set; }
+    public const int MaxProgressNoteLength = 120;
     public DateTimeOffset NextAttemptAtUtc { get; private set; }
     public string? LastFailure { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
@@ -33,7 +39,22 @@ public sealed class Job
         if (State == JobState.Cancelled || State == JobState.Succeeded || NextAttemptAtUtc > now ||
             (State == JobState.Running && LeaseExpiresAtUtc > now)) return false;
         State = JobState.Running; LeaseOwner = worker; AttemptToken = token; LeaseExpiresAtUtc = now.Add(lease); Attempts++;
-        LastFailure = null; return true;
+        LastFailure = null; StartedAtUtc = now; ProgressStep = 0; ProgressTotal = 0; ProgressNote = "Getting your recordings and pictures ready"; return true;
+    }
+
+    /// <summary>Extends the lease for the attempt that still owns it. Returns false if another attempt took over or the job ended.</summary>
+    public bool TryRenew(Guid token, DateTimeOffset now, TimeSpan lease)
+    {
+        if (State != JobState.Running || AttemptToken != token) return false;
+        LeaseExpiresAtUtc = now.Add(lease); return true;
+    }
+
+    /// <summary>Records progress for the attempt that owns the lease. Ignored (false) for any other attempt.</summary>
+    public bool TryReportProgress(Guid token, int step, int total, string note)
+    {
+        if (State != JobState.Running || AttemptToken != token || total < 1 || step < 0 || step > total) return false;
+        note = note.Trim();
+        ProgressStep = step; ProgressTotal = total; ProgressNote = note.Length > MaxProgressNoteLength ? note[..MaxProgressNoteLength] : note; return true;
     }
 
     public void Complete(Guid token, DateTimeOffset now)

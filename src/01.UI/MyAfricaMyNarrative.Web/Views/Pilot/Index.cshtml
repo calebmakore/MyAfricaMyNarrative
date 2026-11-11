@@ -1,0 +1,52 @@
+@model IReadOnlyList<PilotProjectMetrics>
+@{
+    ViewData["Title"] = "Pilot insights";
+    var withCut = Model.Where(x => x.ToApprovedCut is not null).ToList();
+    var reflections = Model.Where(x => x.Feedback is not null).ToList();
+    TimeSpan? median = null;
+    if (withCut.Count > 0) { var sorted = withCut.Select(x => x.ToApprovedCut!.Value).OrderBy(x => x).ToList(); median = sorted[sorted.Count / 2]; }
+}
+<header class="pilot-hero">
+    <p class="eyebrow">Pilot insights</p>
+    <h1>How the studio is working for you</h1>
+    <p class="hero-copy">Measured from your own stories: how long it takes to reach an approved cut, how much AI help you kept, and whether the film says what you meant. Nothing here is estimated.</p>
+    <div class="inline-actions"><a class="button button-primary" asp-action="Download">Download results (JSON)</a><span class="field-help">For your pilot facilitator. No media, transcripts or scene words — only measures, titles and your reflections.</span></div>
+</header>
+
+<section class="stat-row" aria-label="Summary">
+    <article class="stat"><p class="stat-value">@Model.Count</p><p class="stat-label">stories started</p></article>
+    <article class="stat"><p class="stat-value">@withCut.Count</p><p class="stat-label">reached an approved cut</p></article>
+    <article class="stat"><p class="stat-value">@PilotMetrics.Duration(median)</p><p class="stat-label">median time to approved cut</p></article>
+    <article class="stat"><p class="stat-value">@reflections.Count(x => x.Feedback!.IntentMatch is IntentMatch.Mostly or IntentMatch.Fully)/@reflections.Count</p><p class="stat-label">say the film says what they meant</p></article>
+</section>
+
+@if (Model.Count == 0)
+{
+    <div class="empty-state"><h3>No stories yet</h3><p><a asp-controller="Projects" asp-action="Index">Start a story</a> — measures appear here as you work.</p></div>
+}
+else
+{
+    <div class="table-wrap">
+    <table class="pilot-table">
+        <caption class="visually-hidden">Measures per story</caption>
+        <thead><tr><th scope="col">Story</th><th scope="col">First source</th><th scope="col">Approved cut</th><th scope="col">Final film</th><th scope="col">Versions</th><th scope="col">Words: quoted / yours / AI</th><th scope="col">AI help kept / rejected</th><th scope="col">Says what you meant?</th><th scope="col">Needed help with</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model)
+        {
+            <tr>
+                <th scope="row"><a asp-controller="Projects" asp-action="Details" asp-route-id="@row.ProjectId">@row.Title</a></th>
+                <td>@PilotMetrics.Duration(row.ToFirstSource)</td>
+                <td>@PilotMetrics.Duration(row.ToApprovedCut)</td>
+                <td>@PilotMetrics.Duration(row.ToFinalFilm)</td>
+                <td>@row.StoryVersions</td>
+                <td>@row.QuotedScenes / @row.CreatorWrittenScenes / @row.AiWordScenes</td>
+                <td>@row.AiSuggestionsKept / @row.AiSuggestionsRejected @if (row.PracticeSuggestions > 0) { <span class="field-help">+@row.PracticeSuggestions practice</span> }</td>
+                <td>@(row.Feedback is null ? "—" : row.Feedback.IntentMatch switch { IntentMatch.Fully => "Fully", IntentMatch.Mostly => "Mostly", IntentMatch.Partly => "Partly", _ => "Not yet" })</td>
+                <td>@(row.Feedback is null ? "—" : string.Join(", ", PilotMetrics.HelpAreas.Where(h => row.Feedback.NeededHelp.HasFlag(h.Area)).Select(h => h.Label)) is { Length: > 0 } help ? help : "Nothing")</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div>
+    <p class="field-help">Times are from creating each story. “AI help kept” counts live AI suggestions you applied or approved; practice suggestions use simple rules, not AI.</p>
+}

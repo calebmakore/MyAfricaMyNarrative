@@ -1,33 +1,433 @@
 @model StudioViewModel
-@{ ViewData["Title"] = $"Shape · {Model.Project.Title}"; var audio = Model.Project.MediaAssets.Where(x => x.Kind == MediaKind.Audio && x.PermissionStatus == PermissionStatus.Granted).ToList(); var visuals = Model.Project.MediaAssets.Where(x => x.Kind != MediaKind.Audio && x.PermissionStatus == PermissionStatus.Granted).ToList(); }
-@if (TempData["Error"] is string error) { <div class="notice error" role="alert">@error</div> }
-@if (TempData["Notice"] is string notice) { <div class="notice" role="status">@notice</div> }
-<header class="page-header"><div><p class="eyebrow">Shape</p><h1>@Model.Project.Title</h1><p>Review what was spoken, confirm real timing, and build scenes from permitted sources.</p></div></header>
-<nav class="studio-nav" aria-label="Studio stages"><a asp-controller="Projects" asp-action="Details" asp-route-id="@Model.Project.Id">Record</a><a class="active" aria-current="page">Shape</a><a asp-action="Make" asp-route-id="@Model.Project.Id">Make</a><a asp-action="Export" asp-route-id="@Model.Project.Id">Export</a></nav>
-<section class="studio-grid">
-<div class="surface"><p class="eyebrow">Reviewed source</p><div class="heading-with-help"><h2>Transcript and timing</h2><button type="button" class="help-button" data-help-title="Reviewing words and timing" data-help="Listen to the source and enter the words that were actually spoken. Mark in is where the selected speech begins; mark out is where it ends. Times use milliseconds: 5 seconds is 5000 ms. Save this review before linking it to a scene."><span aria-hidden="true">?</span><span class="visually-hidden">Help with transcript timing</span></button></div>
-@if (audio.Count == 0) { <p class="notice">Add permitted audio in Record before reviewing a transcript.</p> }
-else { <form asp-action="SaveTranscript" asp-route-id="@Model.Project.Id" method="post"><label for="AssetId">Source audio</label><select id="AssetId" name="AssetId" required>@foreach (var item in audio) { <option value="@item.Id">@item.DisplayName</option> }</select><div class="timing-grid"><label>Mark in (ms)<input name="StartMs" type="number" min="0" max="300000" value="0" required /></label><label>Mark out (ms)<input name="EndMs" type="number" min="1" max="300000" value="20000" required /></label></div><label for="Language">Language</label><input id="Language" name="Language" value="English" maxlength="40" required /><label for="Text">Corrected words actually spoken</label><textarea id="Text" name="Text" maxlength="12000" rows="7" required></textarea><p class="field-help">Saving creates an immutable reviewed revision. It does not alter the recording.</p><button class="button-primary" type="submit">Save reviewed transcript</button></form> }
-@if (Model.Project.TranscriptRevisions.Count > 0) { <h3>Reviewed revisions</h3><ol class="revision-list">@foreach (var transcript in Model.Project.TranscriptRevisions.OrderByDescending(x => x.CreatedAtUtc)) { <li><strong>@transcript.Language</strong> · @transcript.StartMs–@transcript.EndMs ms<blockquote>@transcript.Text</blockquote><audio controls preload="metadata" src="@Url.Action("Play", "Media", new { id = transcript.AssetId })#t=@(transcript.StartMs/1000d),@(transcript.EndMs/1000d)"></audio></li> }</ol> }
-</div>
-<aside class="surface"><p class="eyebrow">Story revision</p><div class="heading-with-help"><h2>Add a source-backed scene</h2><button type="button" class="help-button" data-help-title="Building a scene" data-help="A scene combines permitted original audio, a real uploaded image or video, an exact source range and caption text. Select the reviewed transcript when quoting the recording. Every save creates a new revision so approved source material is protected."><span aria-hidden="true">?</span><span class="visually-hidden">Help with building a scene</span></button></div>
-@if (audio.Count == 0 || visuals.Count == 0) { <p class="notice">A scene needs both permitted audio and a real uploaded image/video. Add the missing source in Record.</p> }
-else { <form asp-action="AddScene" asp-route-id="@Model.Project.Id" method="post"><label>Scene title<input name="Title" maxlength="120" required /></label><label>Audio source<select name="AudioAssetId" required>@foreach (var item in audio) { <option value="@item.Id">@item.DisplayName</option> }</select></label><label>Visual source<select name="VisualAssetId" required>@foreach (var item in visuals) { <option value="@item.Id">@item.DisplayName</option> }</select></label><label>Reviewed transcript<select name="TranscriptRevisionId"><option value="">Creator-written text (no quotation)</option>@foreach (var item in Model.Project.TranscriptRevisions.OrderByDescending(x => x.CreatedAtUtc)) { <option value="@item.Id">@item.Language · @item.StartMs–@item.EndMs ms</option> }</select></label><label>Wording origin<select name="TextOrigin"><option value="0">From your recording</option><option value="1">Written by you</option></select></label><div class="timing-grid"><label>Mark in (ms)<input name="StartMs" type="number" min="0" value="0" required /></label><label>Mark out (ms)<input name="EndMs" type="number" min="1" value="20000" required /></label></div><label>Scene text<textarea name="Text" maxlength="4000" rows="4"></textarea></label><label>Caption text<textarea name="Caption" maxlength="2000" rows="3"></textarea></label><button class="button-primary" type="submit">Save as new story revision</button></form> }
-</aside></section>
-@{ var intent = Model.Project.CreatorIntents.SingleOrDefault(); var storyProposals = Model.Project.StudioProposals.Where(x => x.Kind == ProposalKind.StoryOrder).OrderByDescending(x => x.CreatedAtUtc).ToList(); }
-<section class="surface stage-section" id="intention"><p class="eyebrow">Creator direction</p><h2>Intention and protected expressions</h2><p>These are facts and choices supplied by you. Fixture suggestions may reorganise existing scenes, but cannot invent answers or change source wording.</p><form asp-action="SaveIntent" asp-route-id="@Model.Project.Id" method="post"><label>Audience<textarea name="Audience" maxlength="500" rows="2">@intent?.Audience</textarea></label><label>Meaning you want to preserve<textarea name="Meaning" maxlength="1000" rows="3">@intent?.Meaning</textarea></label><label>Tone<input name="Tone" maxlength="200" value="@intent?.Tone" /></label><label>Local context<textarea name="LocalContext" maxlength="1500" rows="3">@intent?.LocalContext</textarea></label><label>Protected words or expressions<textarea name="ProtectedTerms" maxlength="1000" rows="3">@intent?.ProtectedTerms</textarea></label><button class="button-primary" type="submit">Save creator intention</button></form></section>
-<section class="surface stage-section" id="proposals"><div class="section-heading"><div><p class="eyebrow">Story assistant</p><h2>Compare a story proposal</h2></div><span class="status">@(Model.AiMode == "Live" ? "Live · OpenAI" : "Fixture · not Live AI")</span></div><p>The assistant receives scene IDs/titles and your intention—not private transcript text—and may only reorder existing scenes. Every quotation, caption, source and timing range remains unchanged.</p><form asp-action="GenerateStoryFixture" asp-route-id="@Model.Project.Id" method="post"><button type="submit">Generate @(Model.AiMode == "Live" ? "bounded Live" : "labelled Fixture") comparison</button></form>@foreach (var proposal in storyProposals) { <article class="proposal-card"><p><strong>@proposal.Status</strong> · @(proposal.IsFixture ? "Fixture" : "Live OpenAI") · @proposal.CreatedAtUtc.ToLocalTime().ToString("d MMM yyyy HH:mm")</p><p>@proposal.Summary</p>@if (proposal.Status == ProposalStatus.Pending) { <div class="proposal-actions"><form asp-action="ReviewProposal" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="proposalId" value="@proposal.Id"/><button class="button-primary" name="apply" value="true" type="submit">Apply as new revision</button><button name="apply" value="false" type="submit">Reject and keep current story</button></form></div> }</article> }</section>
-<section class="surface stage-section"><div class="section-heading"><div><p class="eyebrow">Current cut</p><div class="heading-with-help"><h2>Revision @(Model.CurrentRevision?.RevisionNumber.ToString() ?? "—")</h2><button type="button" class="help-button" data-help-title="Approving a revision" data-help="Review scene order, words, captions and timing. Approval locks readiness to this exact revision. If you change a scene later, approve the new revision before exporting again."><span aria-hidden="true">?</span><span class="visually-hidden">Help with story approval</span></button></div></div>@if (Model.CurrentRevision is not null) { <code class="snapshot-hash">@Model.CurrentRevision.SnapshotHash[..12]</code> }</div>
-@if (Model.CurrentRevision is null || Model.CurrentRevision.Scenes.Count == 0) { <p>No scenes yet.</p> } else { <div class="scene-list">@foreach (var scene in Model.CurrentRevision.Scenes.OrderBy(x => x.Order)) { <article class="scene-card"><p class="eyebrow">Scene @scene.Order · @scene.TextOrigin</p><h3>@scene.Title</h3><p>@scene.StartMs–@scene.EndMs ms · @((scene.EndMs-scene.StartMs)/1000d)s</p><p>@scene.Text</p><p><strong>Caption:</strong> @scene.Caption</p><div class="scene-actions"><form asp-action="MoveScene" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="sceneId" value="@scene.Id"/><button name="direction" value="-1" type="submit" aria-label="Move @scene.Title earlier">Move earlier</button><button name="direction" value="1" type="submit" aria-label="Move @scene.Title later">Move later</button></form></div></article> }</div><form asp-action="Approve" asp-route-id="@Model.Project.Id" method="post"><button class="button-primary" type="submit">Approve this exact revision</button></form> }
-</section>
-@if (Model.CurrentRevision is not null)
+@{
+    ViewData["Title"] = $"Shape · {Model.Project.Title}"; ViewData["StageBar"] = true;
+    var audio = Model.Project.MediaAssets.Where(x => x.CanProvideSound && x.PermissionStatus == PermissionStatus.Granted).OrderBy(x => x.CreatedAtUtc).ToList();
+    var visuals = Model.Project.MediaAssets.Where(x => x.Kind != MediaKind.Audio && x.PermissionStatus == PermissionStatus.Granted).OrderBy(x => x.CreatedAtUtc).ToList();
+    var intent = Model.Project.CreatorIntents.SingleOrDefault();
+    var translationLanguage = intent?.TranslationLanguage ?? "";
+    var transcripts = Model.Project.TranscriptRevisions.OrderByDescending(x => x.CreatedAtUtc).ToList();
+    var sourceNames = Model.Project.MediaAssets.ToDictionary(x => x.Id, x => x.DisplayName);
+    var revision = Model.CurrentRevision;
+    var approved = revision is not null && Model.Project.ReviewApprovals.Any(x => x.StoryRevisionId == revision.Id && x.SnapshotHash == revision.SnapshotHash);
+    var languageReview = revision is null ? null : Model.Project.LanguageReviews.FirstOrDefault(x => x.StoryRevisionId == revision.Id && x.SnapshotHash == revision.SnapshotHash);
+    var hasIntent = intent is not null && (intent.Meaning.Length > 0 || intent.Audience.Length > 0);
+    var openQuestions = Model.Project.CreatorQuestions.Count(x => x.AnsweredAtUtc is null);
+    var pendingTranscriptions = Model.Project.TranscriptionProposals.Where(x => x.Status == TranscriptionProposalStatus.NeedsTiming).OrderByDescending(x => x.CreatedAtUtc).ToList();
+    string Play(Guid id) => Url.Action("Play", "Media", new { id })!;
+}
+<partial name="_StudioHeader" model="new StudioHeaderModel(Model.Project, Model.Progress, StudioStage.Shape)" />
+
+@if (audio.Count == 0 || visuals.Count == 0)
 {
-    var currentApproval = Model.Project.ReviewApprovals.FirstOrDefault(x => x.StoryRevisionId == Model.CurrentRevision.Id && x.SnapshotHash == Model.CurrentRevision.SnapshotHash);
-    var languageReview = Model.Project.LanguageReviews.FirstOrDefault(x => x.StoryRevisionId == Model.CurrentRevision.Id && x.SnapshotHash == Model.CurrentRevision.SnapshotHash);
-    <section class="surface stage-section" id="language-review"><div class="section-heading"><div><p class="eyebrow">Current approved story</p><h2>Language review · revision @Model.CurrentRevision.RevisionNumber</h2></div><code class="snapshot-hash">@Model.CurrentRevision.SnapshotHash[..12]</code></div>
-    <p>Review the captions and original expressions for this exact revision. A later story or caption change creates a new revision and this review will no longer satisfy Export.</p>
-    @if (currentApproval is null) { <p class="notice">Approve this story revision above before recording language review.</p> }
-    else if (languageReview is not null) { <div class="notice success"><strong>Language review recorded</strong><br/>@languageReview.ReviewerName · @languageReview.Language · @(languageReview.IsSelfReview ? "Creator self-review" : "Review by another fluent person")<br/>@languageReview.FluencyBasis · @languageReview.AttestedAtUtc.ToLocalTime().ToString("d MMM yyyy HH:mm")</div>@if (!string.IsNullOrWhiteSpace(languageReview.Notes)) { <p><strong>Review notes:</strong> @languageReview.Notes</p> } }
-    else { <form asp-action="SaveLanguageReview" asp-route-id="@Model.Project.Id" method="post"><label>Reviewer’s real name<input name="ReviewerName" maxlength="120" required /></label><label>Language reviewed<input name="Language" maxlength="40" placeholder="e.g. English, isiXhosa" required /></label><label>Why this person is fluent<input name="FluencyBasis" maxlength="200" placeholder="e.g. Home-language speaker" required /></label><label class="check"><input name="IsSelfReview" type="checkbox" value="true" /> This is a creator self-review</label><label>Correction or context notes<textarea name="Notes" maxlength="1000" rows="4"></textarea></label><label class="check"><input name="Attested" type="checkbox" value="true" required /> I confirm that I am fluent in the language reviewed and checked these captions and explanations against the source material.</label><button class="button-primary" type="submit">Record language review</button></form> }
+    <div class="notice">Shape needs at least one voice recording and one photo or video. <a asp-controller="Projects" asp-action="Details" asp-route-id="@Model.Project.Id" asp-fragment="add-source">Add them in Record</a>.</div>
+}
+
+@* Step 1 — intention *@
+<details class="panel" id="intention" open="@(!hasIntent)">
+    <summary><span class="step-number" aria-hidden="true"><span>1</span></span><span class="summary-text"><strong>What is this story for?</strong><span>@(hasIntent ? $"For {(intent!.Audience.Length > 0 ? intent.Audience : "your audience")} · {intent.Meaning}" : "Who it’s for, what it must say, and words that must stay exactly as spoken")</span></span>@if (hasIntent) { <span class="status good">Saved</span> }</summary>
+    <div class="panel-body">
+        @if (Model.Project.Idea.Length > 0 || Model.Project.StoryType != StoryType.Unspecified)
+        {
+            <div class="idea-card"><p class="eyebrow">Your starting idea @if (Model.Project.StoryType != StoryType.Unspecified) { <span class="status">@StoryTypes.Label(Model.Project.StoryType)</span> }</p>@if (Model.Project.Idea.Length > 0) { <p>@Model.Project.Idea</p> }<a asp-controller="Projects" asp-action="Details" asp-route-id="@Model.Project.Id" asp-fragment="basics">Edit in Record</a></div>
+        }
+        <form asp-action="SaveIntent" asp-route-id="@Model.Project.Id" method="post">
+            <div class="field-row">
+                <label>Who is it for?<textarea name="Audience" maxlength="500" rows="2" placeholder="e.g. Young designers in Harare, and my children">@intent?.Audience</textarea></label>
+                <label>What must it say?<textarea name="Meaning" maxlength="1000" rows="2" placeholder="e.g. My style began at my grandmother’s sewing machine">@intent?.Meaning</textarea></label>
+            </div>
+            <div class="field-row">
+                <label>How should it feel?<input name="Tone" maxlength="200" value="@intent?.Tone" placeholder="e.g. Warm, proud, a little funny" /></label>
+                <label>Second caption language <span class="field-help">optional</span><input name="TranslationLanguage" maxlength="40" value="@intent?.TranslationLanguage" placeholder="e.g. English (beside Shona)" /></label>
+            </div>
+            <label>Local context an outsider should know<textarea name="LocalContext" maxlength="1500" rows="2">@intent?.LocalContext</textarea></label>
+            <label>Protected words and expressions<span class="field-help">Names and phrases that must stay exactly as spoken. Separate with commas.</span><textarea name="ProtectedTerms" maxlength="1000" rows="2" placeholder="e.g. Mbuya, chinyakare, Mutare">@intent?.ProtectedTerms</textarea></label>
+            <button class="button-primary" type="submit">Save</button>
+        </form>
+        <details id="creator-questions" open="@(openQuestions > 0)"><summary>Questions to help you think it through @(openQuestions > 0 ? $"({openQuestions} to answer)" : "")</summary>
+            <p class="field-help">These only prompt you. Your answers are stored as your words, never filled in by the app.</p>
+            <form asp-action="GenerateCreatorQuestions" asp-route-id="@Model.Project.Id" method="post"><button type="submit" class="button-quiet">Ask me about anything missing</button></form>
+            @foreach (var question in Model.Project.CreatorQuestions.OrderBy(x => x.CreatedAtUtc))
+            {
+                <article class="proposal-card"><p class="eyebrow">@question.Field</p><p><strong>@question.Prompt</strong></p>
+                @if (question.AnsweredAtUtc is null) { <form asp-action="AnswerCreatorQuestion" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="QuestionId" value="@question.Id" /><label class="visually-hidden" for="answer-@question.Id">Your answer</label><textarea id="answer-@question.Id" name="Answer" maxlength="1000" rows="2" required></textarea><button class="button-primary" type="submit">Save my answer</button></form> }
+                else { <blockquote>@question.Answer</blockquote> }
+                </article>
+            }
+        </details>
+    </div>
+</details>
+
+@* Step 2 — transcript *@
+<section class="step @(transcripts.Count > 0 ? "is-done" : "")" id="transcript">
+    <div class="step-head"><span class="step-number" aria-hidden="true"><span>2</span></span><div><div class="heading-with-help"><h2>Check the words</h2><button type="button" class="help-button" data-help-title="Checking the words" data-help="Play your recording. When the part you want begins, press “Set start”; when it ends, press “Set end”. Then type the words exactly as they were spoken. Saving keeps a reviewed copy; your recording itself is never changed."><span aria-hidden="true">?</span><span class="visually-hidden">Help with checking words</span></button></div><p>Listen, mark a stretch, and type exactly what was said.</p></div>@if (transcripts.Count > 0) { <span class="status good">@transcripts.Count saved</span> }</div>
+    @if (audio.Count > 0)
+    {
+        <form asp-action="SaveTranscript" asp-route-id="@Model.Project.Id" method="post">
+            <label>Recording<select name="AssetId" required data-timing-source>@foreach (var item in audio) { <option value="@item.Id" data-src="@Play(item.Id)" data-duration="@(item.DurationMs / 1000d)">@item.DisplayName</option> }</select></label>
+            <div class="timing" data-timing>
+                <audio controls preload="metadata" src="@Play(audio[0].Id)" data-timing-player></audio>
+                <div class="timing-grid">
+                    <div class="timing-field"><label>Start (seconds)<input name="StartSeconds" type="number" min="0" max="300" step="any" value="0" required data-timing-start /></label><button type="button" class="button-quiet" data-set="start">Set start from player</button></div>
+                    <div class="timing-field"><label>End (seconds)<input name="EndSeconds" type="number" min="0.1" max="300" step="any" value="@Math.Min(20, Math.Max(1, audio[0].DurationMs / 1000d)).ToString(System.Globalization.CultureInfo.InvariantCulture)" required data-timing-end /></label><button type="button" class="button-quiet" data-set="end">Set end from player</button></div>
+                </div>
+                <div class="timing-actions"><button type="button" class="button-quiet" data-play-selection>▶ Play this stretch</button><span class="timing-readout" data-timing-readout></span></div>
+            </div>
+            <label>Words actually spoken<textarea name="Text" maxlength="12000" rows="5" required placeholder="Type exactly what you hear, in the language it was spoken."></textarea></label>
+            <label>Language spoken<input name="Language" value="@(transcripts.FirstOrDefault()?.Language)" maxlength="40" placeholder="e.g. Shona" required /></label>
+            <button class="button-primary" type="submit">Save these words</button>
+        </form>
+        <details id="transcription-proposals" open="@(pendingTranscriptions.Count > 0)">
+            <summary>Let AI suggest the words @(Model.AiMode == "Live" ? "" : "(off)")</summary>
+            @if (Model.AiMode != "Live") { <p class="field-help">AI transcription is switched off in this studio. Typing the words yourself works just as well.</p> }
+            else
+            {
+                <p class="field-help">AI suggestions are drafts. You still listen, set the timing and confirm every word.</p>
+                <div class="inline-actions">@foreach (var item in audio) { <form asp-action="GenerateTranscription" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="assetId" value="@item.Id" /><button type="submit" class="button-quiet">Suggest words for “@item.DisplayName”</button></form> }</div>
+            }
+            @foreach (var proposal in pendingTranscriptions)
+            {
+                var source = Model.Project.MediaAssets.Single(x => x.Id == proposal.AssetId);
+                <article class="proposal-card"><p><span class="status info">AI suggestion</span> @source.DisplayName</p><blockquote>@proposal.Text</blockquote>
+                    <form asp-action="ReviewTranscription" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="ProposalId" value="@proposal.Id" />
+                        <div class="timing" data-timing><audio controls preload="metadata" src="@Play(source.Id)" data-timing-player></audio>
+                            <div class="timing-grid"><div class="timing-field"><label>Start (seconds)<input name="StartSeconds" type="number" min="0" step="any" value="0" required data-timing-start /></label><button type="button" class="button-quiet" data-set="start">Set start from player</button></div><div class="timing-field"><label>End (seconds)<input name="EndSeconds" type="number" min="0.1" step="any" value="@((source.DurationMs / 1000d).ToString(System.Globalization.CultureInfo.InvariantCulture))" required data-timing-end /></label><button type="button" class="button-quiet" data-set="end">Set end from player</button></div></div>
+                            <div class="timing-actions"><button type="button" class="button-quiet" data-play-selection>▶ Play this stretch</button><span class="timing-readout" data-timing-readout></span></div></div>
+                        <label>Language spoken<input name="Language" maxlength="40" value="@(proposal.DetectedLanguages.Length == 0 ? transcripts.FirstOrDefault()?.Language : proposal.DetectedLanguages)" placeholder="e.g. Shona" required /></label>
+                        <div class="inline-actions"><button class="button-primary" name="reject" value="false" type="submit">I checked it — save</button><button name="reject" value="true" type="submit" formnovalidate>Discard suggestion</button></div>
+                    </form>
+                </article>
+            }
+        </details>
+        @if (transcripts.Count > 0)
+        {
+            <details><summary>Saved words (@transcripts.Count)</summary>
+                <ol class="revision-list">@foreach (var t in transcripts) { <li><p class="scene-meta"><strong>@sourceNames.GetValueOrDefault(t.AssetId, "Recording")</strong> · @t.Language · @Seconds.FromMs(t.StartMs)–@Seconds.FromMs(t.EndMs) s</p><blockquote>@t.Text</blockquote><audio controls preload="none" src="@Play(t.AssetId)#t=@Seconds.FromMs(t.StartMs),@Seconds.FromMs(t.EndMs)" aria-label="Play this stretch"></audio></li> }</ol>
+            </details>
+        }
+    }
+</section>
+
+@* Step 3 — add a scene *@
+<section class="step" id="add-scene">
+    <div class="step-head"><span class="step-number" aria-hidden="true"><span>3</span></span><div><div class="heading-with-help"><h2>Build a scene</h2><button type="button" class="help-button" data-help-title="Building a scene" data-help="A scene is a stretch of your voice played over a photo or video, with a caption. Choose saved words to quote your recording exactly — the timing and words fill in for you. Choose “Written by me” for narration you wrote. Every save keeps a new version of your story."><span aria-hidden="true">?</span><span class="visually-hidden">Help with building a scene</span></button></div><p>Pair a stretch of your voice with a picture and a caption.</p></div></div>
+    @if (audio.Count == 0 || visuals.Count == 0) { <p class="field-help">Add a voice recording and a photo or video in Record first.</p> }
+    else
+    {
+        <form asp-action="AddScene" asp-route-id="@Model.Project.Id" method="post" data-scene-form>
+            <label>Scene title<input name="Title" maxlength="120" required placeholder="e.g. The first stitch" /></label>
+            <fieldset><legend>Whose words are these?</legend>
+                <div class="origin-choice">
+                    <label><input type="radio" name="TextOrigin" value="0" checked /> <span>From my recording<span>Quoted exactly from saved words</span></span></label>
+                    <label><input type="radio" name="TextOrigin" value="1" /> <span>Written by me<span>Narration or context you wrote</span></span></label>
+                    <label><input type="radio" name="TextOrigin" value="2" /> <span>AI-suggested, kept by me<span>Words the story coach suggested — labelled in your story</span></span></label>
+                </div>
+            </fieldset>
+            <label>Saved words to quote<select name="TranscriptRevisionId" data-transcript-select><option value="">None — I wrote these words</option>@foreach (var t in transcripts) { <option value="@t.Id" data-asset="@t.AssetId" data-start="@Seconds.FromMs(t.StartMs)" data-end="@Seconds.FromMs(t.EndMs)" data-text="@t.Text">@sourceNames.GetValueOrDefault(t.AssetId, "Recording") · @Seconds.FromMs(t.StartMs)–@Seconds.FromMs(t.EndMs) s · @(t.Text.Length > 40 ? t.Text[..40] + "…" : t.Text)</option> }</select><span class="field-help">Choosing saved words fills in the recording, timing and words for you.</span></label>
+            <div class="field-row">
+                <label>Voice<select name="AudioAssetId" required data-timing-source>@foreach (var item in audio) { <option value="@item.Id" data-src="@Play(item.Id)">@item.DisplayName</option> }</select></label>
+                <label>Picture<select name="VisualAssetId" required>@foreach (var item in visuals) { <option value="@item.Id">@item.DisplayName</option> }</select></label>
+            </div>
+            <div class="timing" data-timing>
+                <audio controls preload="metadata" src="@Play(audio[0].Id)" data-timing-player></audio>
+                <div class="timing-grid">
+                    <div class="timing-field"><label>Start (seconds)<input name="StartSeconds" type="number" min="0" max="300" step="any" value="0" required data-timing-start /></label><button type="button" class="button-quiet" data-set="start">Set start from player</button></div>
+                    <div class="timing-field"><label>End (seconds)<input name="EndSeconds" type="number" min="0.1" max="300" step="any" value="15" required data-timing-end /></label><button type="button" class="button-quiet" data-set="end">Set end from player</button></div>
+                </div>
+                <div class="timing-actions"><button type="button" class="button-quiet" data-play-selection>▶ Play this stretch</button><span class="timing-readout" data-timing-readout></span></div>
+            </div>
+            <label>Words in this scene<textarea name="Text" maxlength="4000" rows="3" data-scene-text></textarea><span class="field-help">For a quote, these must match the saved words. Leave empty to quote the whole saved stretch.</span></label>
+            <label>Caption on screen<textarea name="Caption" maxlength="2000" rows="2" placeholder="Leave empty to show the words above"></textarea></label>
+            <details open="@(translationLanguage.Length > 0)"><summary>Add a translated caption @(translationLanguage.Length > 0 ? $"({translationLanguage})" : "")</summary><label>Translated caption<textarea name="Translation" maxlength="2000" rows="2"></textarea><span class="field-help">Shown as a draft until a fluent speaker reviews it.</span></label></details>
+            <button class="button-primary button-large" type="submit">Add scene</button>
+        </form>
+    }
+</section>
+
+@* Step 4 — the cut *@
+<section class="step @(approved ? "is-done" : "")" id="current-cut">
+    <div class="step-head"><span class="step-number" aria-hidden="true"><span>4</span></span><div><div class="heading-with-help"><h2>Your cut</h2><button type="button" class="help-button" data-help-title="Your cut" data-help="These are your scenes in order. Edit, remove or move any scene — each change saves a new version, and older versions and your recordings are never changed. When the order and words feel right, approve this version."><span aria-hidden="true">?</span><span class="visually-hidden">Help with your cut</span></button></div><p>@(revision is null ? "No scenes yet." : $"Version {revision.RevisionNumber} · {revision.Scenes.Count} scene{(revision.Scenes.Count == 1 ? "" : "s")} · {revision.Scenes.Sum(x => x.EndMs - x.StartMs) / 1000d:0.#} s")</p></div>@if (approved) { <span class="status good">Approved</span> } else if (revision is not null && revision.Scenes.Count > 0) { <span class="status warn">Not approved</span> }</div>
+    @if (revision is null || revision.Scenes.Count == 0)
+    {
+        <div class="empty-state"><h3>No scenes yet</h3><p>Build your first scene above. Aim for 60–90 seconds in total for the final film.</p></div>
+    }
+    else
+    {
+        <form asp-action="ReorderScenes" asp-route-id="@Model.Project.Id" method="post" data-reorder-form hidden><input type="hidden" name="baseline" value="@revision.SnapshotHash" /></form>
+        <p class="field-help drag-hint">Drag scenes by <span aria-hidden="true">⋮⋮</span> to reorder, or use Earlier and Later.</p>
+        <ol class="scene-list" data-sortable>
+        @foreach (var scene in revision.Scenes.OrderBy(x => x.Order))
+        {
+            var sceneTranscript = scene.TranscriptRevisionId is Guid tid ? Model.Project.TranscriptRevisions.FirstOrDefault(x => x.Id == tid) : null;
+            var quoted = scene.TextOrigin == TextOrigin.SourceQuotation;
+            var aiWords = scene.TextOrigin == TextOrigin.AiSuggested;
+            <li class="scene-card @(quoted ? "" : "creator") @(aiWords ? "ai-words" : "")" data-scene-id="@scene.Id">
+                <div class="scene-top"><button type="button" class="drag-handle" data-drag-handle aria-label="Drag to reorder @scene.Title" title="Drag to reorder"><span aria-hidden="true">⋮⋮</span></button><span class="scene-order">@scene.Order</span><div><h3>@scene.Title</h3><p class="scene-meta"><span class="status @(quoted ? "warn" : aiWords ? "ai" : "info")">@(quoted ? "From my recording" : aiWords ? "AI-suggested · kept by me" : "Written by me")</span> @sourceNames.GetValueOrDefault(scene.AudioAssetId, "Missing voice") · @sourceNames.GetValueOrDefault(scene.VisualAssetId, "Missing picture") · @((scene.EndMs - scene.StartMs) / 1000d) s</p></div></div>
+                <audio controls preload="none" src="@Play(scene.AudioAssetId)#t=@Seconds.FromMs(scene.StartMs),@Seconds.FromMs(scene.EndMs)" aria-label="Play the voice for @scene.Title"></audio>
+                <p class="scene-caption">@scene.EffectiveCaption</p>
+                @if (scene.Translation.Length > 0) { <p class="scene-translation">@scene.Translation <span class="status @(languageReview is null ? "warn" : "good")">@(languageReview is null ? "Draft" : "Reviewed")</span></p> }
+                <div class="scene-actions">
+                    <form asp-action="MoveScene" asp-route-id="@Model.Project.Id" method="post" class="inline-actions"><input type="hidden" name="sceneId" value="@scene.Id" /><button class="button-quiet" name="direction" value="-1" type="submit" aria-label="Move @scene.Title earlier" disabled="@(scene.Order == 1)">↑ Earlier</button><button class="button-quiet" name="direction" value="1" type="submit" aria-label="Move @scene.Title later" disabled="@(scene.Order == revision.Scenes.Count)">↓ Later</button></form>
+                    <form asp-action="RemoveScene" asp-route-id="@Model.Project.Id" method="post" data-confirm="Remove this scene? Earlier versions keep it."><input type="hidden" name="sceneId" value="@scene.Id" /><button class="button-danger button-quiet" type="submit" aria-label="Remove @scene.Title">Remove</button></form>
+                </div>
+                <details class="scene-edit"><summary>Edit this scene</summary>
+                    <form asp-action="EditScene" asp-route-id="@Model.Project.Id" method="post" data-scene-form><input type="hidden" name="sceneId" value="@scene.Id" />
+                        <label>Scene title<input name="Title" maxlength="120" value="@scene.Title" required /></label>
+                        <fieldset><legend>Whose words are these?</legend><div class="origin-choice">
+                            <label><input type="radio" name="TextOrigin" value="0" checked="@quoted" /> <span>From my recording<span>Quoted exactly</span></span></label>
+                            <label><input type="radio" name="TextOrigin" value="1" checked="@(!quoted && !aiWords)" /> <span>Written by me<span>Narration you wrote</span></span></label><label><input type="radio" name="TextOrigin" value="2" checked="@aiWords" /> <span>AI-suggested, kept by me<span>Stays labelled as AI words</span></span></label>
+                        </div></fieldset>
+                        <label>Saved words to quote<select name="TranscriptRevisionId" data-transcript-select><option value="">None — I wrote these words</option>@foreach (var t in transcripts) { <option value="@t.Id" data-asset="@t.AssetId" data-start="@Seconds.FromMs(t.StartMs)" data-end="@Seconds.FromMs(t.EndMs)" data-text="@t.Text" selected="@(t.Id == scene.TranscriptRevisionId)">@sourceNames.GetValueOrDefault(t.AssetId, "Recording") · @Seconds.FromMs(t.StartMs)–@Seconds.FromMs(t.EndMs) s</option> }</select></label>
+                        @if (sceneTranscript is not null) { <p class="field-help">Saved words: “@sceneTranscript.Text”</p> }
+                        <div class="field-row">
+                            <label>Voice<select name="AudioAssetId" required data-timing-source>@foreach (var item in audio) { <option value="@item.Id" data-src="@Play(item.Id)" selected="@(item.Id == scene.AudioAssetId)">@item.DisplayName</option> }</select></label>
+                            <label>Picture<select name="VisualAssetId" required>@foreach (var item in visuals) { <option value="@item.Id" selected="@(item.Id == scene.VisualAssetId)">@item.DisplayName</option> }</select></label>
+                        </div>
+                        <div class="timing" data-timing>
+                            <audio controls preload="none" src="@Play(scene.AudioAssetId)" data-timing-player></audio>
+                            <div class="timing-grid">
+                                <div class="timing-field"><label>Start (seconds)<input name="StartSeconds" type="number" min="0" step="any" value="@Seconds.FromMs(scene.StartMs)" required data-timing-start /></label><button type="button" class="button-quiet" data-set="start">Set start from player</button></div>
+                                <div class="timing-field"><label>End (seconds)<input name="EndSeconds" type="number" min="0.1" step="any" value="@Seconds.FromMs(scene.EndMs)" required data-timing-end /></label><button type="button" class="button-quiet" data-set="end">Set end from player</button></div>
+                            </div>
+                            <div class="timing-actions"><button type="button" class="button-quiet" data-play-selection>▶ Play this stretch</button><span class="timing-readout" data-timing-readout></span></div>
+                        </div>
+                        <label>Words in this scene<textarea name="Text" maxlength="4000" rows="3" data-scene-text>@scene.Text</textarea></label>
+                        <label>Caption on screen<textarea name="Caption" maxlength="2000" rows="2">@scene.Caption</textarea></label>
+                        <label>Translated caption @(translationLanguage.Length > 0 ? $"({translationLanguage})" : "")<textarea name="Translation" maxlength="2000" rows="2">@scene.Translation</textarea></label>
+                        <button class="button-primary" type="submit">Save changes</button>
+                    </form>
+                </details>
+            </li>
+        }
+        </ol>
+        <div class="approve-bar">
+            @if (approved) { <span><strong>Version @revision.RevisionNumber is approved.</strong> Any change will need approving again.</span> }
+            else { <span><strong>Happy with the order and words?</strong> Approving locks this exact version for export.</span><form asp-action="Approve" asp-route-id="@Model.Project.Id" method="post"><button class="button-primary" type="submit">Approve this version</button></form> }
+        </div>
+    }
+</section>
+
+@* Step 5 — language review *@
+@if (revision is not null && revision.Scenes.Count > 0)
+{
+    <section class="step @(languageReview is not null ? "is-done" : "")" id="language-review">
+        <div class="step-head"><span class="step-number" aria-hidden="true"><span>5</span></span><div><div class="heading-with-help"><h2>Language review</h2><button type="button" class="help-button" data-help-title="Language review" data-help="A fluent speaker — you or someone you trust — checks the captions, translations and local expressions of this exact version against the recording. A later change needs a new review before the final export."><span aria-hidden="true">?</span><span class="visually-hidden">Help with language review</span></button></div><p>A fluent speaker checks the captions of version @revision.RevisionNumber.</p></div>@if (languageReview is not null) { <span class="status good">Reviewed</span> }</div>
+        @if (!approved) { <p class="field-help">Approve your cut first.</p> }
+        else if (languageReview is not null)
+        {
+            <div class="notice success"><strong>Reviewed by @languageReview.ReviewerName</strong> · @languageReview.Language · @(languageReview.IsSelfReview ? "self-review" : "another fluent speaker") · @languageReview.FluencyBasis</div>
+            @if (!string.IsNullOrWhiteSpace(languageReview.Notes)) { <p><strong>Notes:</strong> @languageReview.Notes</p> }
+        }
+        else
+        {
+            <form asp-action="SaveLanguageReview" asp-route-id="@Model.Project.Id" method="post">
+                <div class="field-row"><label>Reviewer’s name<input name="ReviewerName" maxlength="120" required /></label><label>Language(s) checked<input name="Language" maxlength="40" placeholder="e.g. Shona and English" required /></label></div>
+                <label>Why they are fluent<input name="FluencyBasis" maxlength="200" placeholder="e.g. Home-language speaker" required /></label>
+                <label class="check"><input name="IsSelfReview" type="checkbox" value="true" /> <span>I am reviewing my own story</span></label>
+                <label>Notes or corrections<textarea name="Notes" maxlength="1000" rows="2"></textarea></label>
+                <label class="check"><input name="Attested" type="checkbox" value="true" required /> <span>The reviewer is fluent and checked these captions against the recording.</span></label>
+                <button class="button-primary" type="submit">Record review</button>
+            </form>
+        }
     </section>
 }
+
+@* Glossary — local expressions with approved explanatory subtitles *@
+@{
+    var glossary = Model.Project.Glossary.OrderBy(x => x.Term, StringComparer.OrdinalIgnoreCase).ToList();
+    var unexplained = SourceFidelity.ParseProtectedTerms(intent?.ProtectedTerms).Where(t => glossary.All(g => !string.Equals(g.Term, t, StringComparison.OrdinalIgnoreCase))).ToList();
+    var allCaptions = revision?.Scenes.Select(x => x.EffectiveCaption + "\n" + x.Translation).ToList() ?? [];
+    var glossaryProposal = Model.Project.StudioProposals.Where(x => x.Kind == ProposalKind.GlossarySuggestions && x.Status == ProposalStatus.Pending).OrderByDescending(x => x.CreatedAtUtc).FirstOrDefault();
+    var glossarySuggestions = glossaryProposal is null ? [] : MyAfricaMyNarrative.Web.Controllers.StudioController.RemainingSuggestions(Model.Project, glossaryProposal);
+    var hasCaptionWords = allCaptions.Any(c => !string.IsNullOrWhiteSpace(c));
+}
+<details class="panel" id="glossary" open="@(glossary.Any(x => !x.IsApproved) || unexplained.Count > 0 || glossarySuggestions.Count > 0)">
+    <summary><span class="summary-text"><strong>Keep your words, explain them once</strong><span>Local expressions stay as spoken; a short explanation appears the first time each is on screen</span></span>@if (glossary.Count > 0) { <span class="status @(glossary.All(x => x.IsApproved) ? "good" : "warn")">@glossary.Count(x => x.IsApproved)/@glossary.Count approved</span> }</summary>
+    <div class="panel-body">
+        @if (unexplained.Count > 0) { <p class="field-help">Protected words without an explanation yet: @string.Join(", ", unexplained). Add one only if outsiders need it.</p> }
+        <div class="glossary-finder">
+            <p><strong>Not sure which words need explaining?</strong> Let the studio look through your captions.</p>
+            @if (!hasCaptionWords) { <p class="field-help">Your scenes have no caption words yet — check the words in step 2 first.</p> }
+            else
+            {
+                <div class="inline-actions">
+                    @if (Model.AiMode == "Live")
+                    {
+                        <form asp-action="SuggestGlossary" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="live" value="true" /><button type="submit" class="button-primary" data-busy-text="Reading your captions…">Find words with AI</button></form>
+                    }
+                    <form asp-action="SuggestGlossary" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="live" value="false" /><button type="submit" class="button-quiet">Check my protected words (no AI)</button></form>
+                </div>
+                <p class="field-help">@(Model.AiMode == "Live" ? "The AI reads your captions, translations and local context note for this request. It drafts explanations; you check and approve each one." : "Live AI is off, so only your protected words are checked.")</p>
+            }
+        </div>
+        @if (glossaryProposal is not null && glossarySuggestions.Count > 0)
+        {
+            var withDraft = glossarySuggestions.Count(x => x.Explanation.Length > 0);
+            <section class="glossary-suggestions" aria-label="Suggested words">
+                <p class="scene-meta"><span class="status @(glossaryProposal.IsFixture ? "" : "ai")">@(glossaryProposal.IsFixture ? "Practice" : "AI suggestion")</span> @glossaryProposal.Summary</p>
+                @foreach (var item in glossarySuggestions)
+                {
+                    <form asp-action="AddGlossary" asp-route-id="@Model.Project.Id" method="post" class="proposal-card glossary-card glossary-suggestion">
+                        <input type="hidden" name="suggestionId" value="@glossaryProposal.Id" />
+                        <input type="hidden" name="Term" value="@item.Term" />
+                        <p><strong class="glossary-term">@item.Term</strong>@if (item.SceneTitle.Length > 0) { <span class="field-help"> · in “@item.SceneTitle”</span> }</p>
+                        <div class="field-row">
+                            <label>Language<input name="Language" value="@item.Language" maxlength="40" /></label>
+                            <label>Explanation on screen<input name="Explanation" value="@item.Explanation" maxlength="160" required minlength="2" placeholder="Write what it means, in your words" /></label>
+                        </div>
+                        <p class="field-help">@GlossarySuggestionRules.BasisLabel(item.Basis)</p>
+                        <button type="submit" class="button-quiet">Add as draft</button>
+                    </form>
+                }
+                <div class="inline-actions">
+                    @if (withDraft > 0) { <form asp-action="AddAllGlossarySuggestions" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="proposalId" value="@glossaryProposal.Id" /><button type="submit" class="button-primary">Add all @withDraft with explanations</button></form> }
+                    <form asp-action="DismissGlossarySuggestions" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="proposalId" value="@glossaryProposal.Id" /><button type="submit" class="button-quiet">Dismiss suggestions</button></form>
+                </div>
+                <p class="field-help">Added words are drafts. Nothing appears in your film until you approve it below.</p>
+            </section>
+        }
+        @foreach (var entry in glossary)
+        {
+            var onScreen = allCaptions.Any(c => GlossaryRules.Appears(c, entry.Term));
+            <article class="proposal-card glossary-card">
+                <p><strong class="glossary-term">@entry.Term</strong>@if (entry.Language.Length > 0) { <span class="field-help"> · @entry.Language</span> } <span class="status @(entry.IsApproved ? "good" : "warn")">@(entry.IsApproved ? "Approved" : "Draft")</span> @if (entry.AiDrafted) { <span class="status ai">@(entry.IsApproved ? "AI draft, approved by you" : "AI draft — check it")</span> } @if (!onScreen) { <span class="status">Not in any caption yet</span> }</p>
+                <p class="glossary-preview"><span>@entry.Term:</span> @entry.Explanation</p>
+                <div class="inline-actions">
+                    @if (!entry.IsApproved) { <form asp-action="ApproveGlossary" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="entryId" value="@entry.Id" /><button class="button-primary" type="submit">@(entry.AiDrafted ? "Checked — approve" : "Approve explanation")</button></form> }
+                    <form asp-action="RemoveGlossary" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="entryId" value="@entry.Id" /><button class="button-quiet button-danger" type="submit">Remove</button></form>
+                </div>
+                <details><summary>Edit</summary>
+                    <form asp-action="UpdateGlossary" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="entryId" value="@entry.Id" />
+                        <div class="field-row"><label>Expression<input name="Term" value="@entry.Term" maxlength="80" required /></label><label>Language<input name="Language" value="@entry.Language" maxlength="40" /></label></div>
+                        <label>Explanation on screen<input name="Explanation" value="@entry.Explanation" maxlength="160" required /></label>
+                        <button class="button-quiet" type="submit">Save — needs approval again</button>
+                    </form>
+                </details>
+            </article>
+        }
+        <form asp-action="AddGlossary" asp-route-id="@Model.Project.Id" method="post" class="glossary-add">
+            <div class="field-row">
+                <label>Expression, exactly as spoken<input name="Term" maxlength="80" required placeholder="e.g. chinyakare" list="protected-terms" /></label>
+                <label>Language <span class="field-help">optional</span><input name="Language" maxlength="40" placeholder="e.g. Shona" /></label>
+            </div>
+            <datalist id="protected-terms">@foreach (var t in unexplained) { <option value="@t"></option> }</datalist>
+            <label>Short explanation, in your words<input name="Explanation" maxlength="160" required placeholder="e.g. the old, traditional way of doing things" /><span class="field-help">You write this. It is never machine-translated.</span></label>
+            <button class="button-primary" type="submit">Add explanation</button>
+        </form>
+    </div>
+</details>
+
+@* Versions — every save is an immutable revision *@
+@{ var versions = Model.Project.StoryRevisions.OrderByDescending(x => x.RevisionNumber).ToList(); }
+@if (versions.Count > 0)
+{
+    <details class="panel" id="versions">
+        <summary><span class="summary-text"><strong>Version history</strong><span>@versions.Count version@(versions.Count == 1 ? "" : "s") · nothing is overwritten</span></span></summary>
+        <div class="panel-body">
+            <ol class="revision-list version-list">
+            @for (var i = 0; i < versions.Count; i++)
+            {
+                var v = versions[i]; var prev = i + 1 < versions.Count ? versions[i + 1] : null;
+                var isApproved = Model.Project.ReviewApprovals.Any(x => x.StoryRevisionId == v.Id && x.SnapshotHash == v.SnapshotHash);
+                var hasReview = Model.Project.LanguageReviews.Any(x => x.StoryRevisionId == v.Id && x.SnapshotHash == v.SnapshotHash);
+                <li>
+                    <p class="scene-meta"><strong>Version @v.RevisionNumber</strong> · @v.CreatedAtUtc.ToLocalTime().ToString("d MMM HH:mm") · @v.Scenes.Count scene@(v.Scenes.Count == 1 ? "" : "s") · @(v.Scenes.Sum(x => x.EndMs - x.StartMs) / 1000d) s
+                        @if (i == 0) { <span class="status info">Current</span> } @if (isApproved) { <span class="status good">Approved</span> } @if (hasReview) { <span class="status good">Language reviewed</span> }
+                        @if (v.Scenes.Any(x => x.TextOrigin == TextOrigin.AiSuggested)) { <span class="status ai">Has AI-suggested words</span> }</p>
+                    <ul class="change-list">@foreach (var change in RevisionHistory.Describe(prev, v)) { <li>@change</li> }</ul>
+                    <p class="field-help">Snapshot @v.SnapshotHash[..12]…</p>
+                </li>
+            }
+            </ol>
+        </div>
+    </details>
+}
+
+@* Story coach — structure, gaps, suggested narration *@
+@{
+    var coachProposals = Model.Project.StudioProposals.Where(x => x.Kind == ProposalKind.StoryStructure && x.PayloadJson.Length > 2).OrderByDescending(x => x.CreatedAtUtc).ToList();
+    var latestCoach = coachProposals.FirstOrDefault();
+    var structure = latestCoach is null ? null : System.Text.Json.JsonSerializer.Deserialize<StoryStructure>(latestCoach.PayloadJson, MyAfricaMyNarrative.Web.Controllers.StudioController.StructureJson);
+    var sceneById = revision?.Scenes.ToDictionary(x => x.Id) ?? new Dictionary<Guid, StoryScene>();
+    var coachStale = latestCoach is not null && (revision is null || latestCoach.BaselineHash != revision.SnapshotHash);
+    var olderOrder = Model.Project.StudioProposals.Where(x => x.Kind == ProposalKind.StoryOrder).OrderByDescending(x => x.CreatedAtUtc).ToList();
+    // Every coach suggestion except the latest, plus old order suggestions. Built as one list: Skip on an empty list inside Concat crashes in .NET 10.
+    var earlierSuggestions = new List<StudioProposal>(olderOrder);
+    if (coachProposals.Count > 1) earlierSuggestions.AddRange(coachProposals.GetRange(1, coachProposals.Count - 1));
+    earlierSuggestions.Sort((x, y) => y.CreatedAtUtc.CompareTo(x.CreatedAtUtc));
+}
+<section class="step" id="coach">
+    <div class="step-head"><span class="step-number" aria-hidden="true"><span>5</span></span><div><div class="heading-with-help"><h2>Find the missing piece</h2><button type="button" class="help-button" data-help-title="Story coach" data-help="The coach sorts your scenes into an opening, context, a turning point and an ending, and points out gaps — an unclear turn, missing context, an ending that needs work, or a film that is too short or long. It asks you questions; only your answers become facts. If the AI suggests a line of narration, it is labelled, and you decide whether to use it, change it, or record it in your own voice."><span aria-hidden="true">?</span><span class="visually-hidden">Help with the story coach</span></button></div><p>A second pair of eyes on the shape of your story.</p></div></div>
+    @if (revision is null || revision.Scenes.Count == 0)
+    {
+        <div class="empty-state"><h3>No scenes yet</h3><p>Build a few scenes first, then ask the coach.</p></div>
+    }
+    else
+    {
+        <div class="coach-actions">
+            @if (Model.AiMode == "Live")
+            {
+                <form asp-action="GenerateStructure" asp-route-id="@Model.Project.Id" method="post" class="coach-live">
+                    <input type="hidden" name="live" value="true" />
+                    <label class="check"><input type="checkbox" name="shareWords" value="true" /> <span>Let the AI read my reviewed words for this request<span class="field-help">Off: it sees only scene titles, lengths and your intention.</span></span></label>
+                    <button type="submit" class="button-primary" data-busy-text="Reading your story…">Coach my story with AI</button>
+                </form>
+            }
+            <form asp-action="GenerateStructure" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="live" value="false" /><button type="submit" class="@(Model.AiMode == "Live" ? "button-quiet" : "button-primary")">Practice coach (no AI)</button></form>
+        </div>
+
+        @if (structure is not null && latestCoach is not null)
+        {
+            <div class="coach-result">
+                <p><span class="status @(latestCoach.IsFixture ? "" : "info")">@(latestCoach.IsFixture ? "Practice coach" : "AI suggestion")</span> <span class="status @(latestCoach.Status == ProposalStatus.Applied ? "good" : latestCoach.Status == ProposalStatus.Pending ? "warn" : "")">@(latestCoach.Status == ProposalStatus.Pending ? "To review" : latestCoach.Status.ToString())</span> <span class="field-help">@latestCoach.CreatedAtUtc.ToLocalTime().ToString("d MMM HH:mm")</span></p>
+                <p>@latestCoach.Summary</p>
+                @if (coachStale) { <p class="notice">Your story changed after this suggestion. Ask again to coach the current version.</p> }
+                <ol class="beat-board">
+                @foreach (var beat in structure.Beats)
+                {
+                    <li class="beat beat-@beat.Beat.ToString().ToLowerInvariant()">
+                        <p class="eyebrow">@StoryCoachRules.Label(beat.Beat)</p>
+                        <ul>@foreach (var sid in beat.SceneIds) { if (sceneById.TryGetValue(sid, out var bs)) { <li><strong>@bs.Title</strong> <audio controls preload="none" src="@Play(bs.AudioAssetId)#t=@Seconds.FromMs(bs.StartMs),@Seconds.FromMs(bs.EndMs)" aria-label="Hear the source for @bs.Title"></audio></li> } else { <li class="field-help">A scene from an earlier version</li> } }</ul>
+                        <p class="field-help">@beat.Note</p>
+                    </li>
+                }
+                </ol>
+                @if (latestCoach.Status == ProposalStatus.Pending && !coachStale)
+                {
+                    <form asp-action="ReviewProposal" asp-route-id="@Model.Project.Id" method="post" class="inline-actions"><input type="hidden" name="proposalId" value="@latestCoach.Id" /><button class="button-primary" name="apply" value="true" type="submit">Use this order</button><button class="button-quiet" name="apply" value="false" type="submit">Keep my order</button><span class="field-help">Only the order changes. Words, quotes and timing stay exactly as they are.</span></form>
+                }
+                @if (structure.Gaps.Count > 0)
+                {
+                    <h3 class="coach-gaps-title">What might be missing</h3>
+                    @foreach (var gap in structure.Gaps)
+                    {
+                        var field = StoryCoachRules.FieldFor(gap.Kind);
+                        var question = Model.Project.CreatorQuestions.Where(x => x.Field == field).OrderByDescending(x => x.CreatedAtUtc).FirstOrDefault();
+                        <article class="proposal-card gap-card">
+                            <p class="eyebrow">@field</p>
+                            <p><strong>@gap.Question</strong></p>
+                            @if (question is not null && question.AnsweredAtUtc is null)
+                            {
+                                <form asp-action="AnswerCreatorQuestion" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="QuestionId" value="@question.Id" /><label class="visually-hidden" for="gap-@question.Id">Your answer</label><textarea id="gap-@question.Id" name="Answer" maxlength="1000" rows="2" required placeholder="In your own words"></textarea><button class="button-quiet" type="submit">Save my answer</button></form>
+                            }
+                            else if (question is not null) { <p class="field-help">Your answer:</p><blockquote>@question.Answer</blockquote> }
+                            @if (gap.SuggestedNarration.Length > 0)
+                            {
+                                <div class="ai-suggestion">
+                                    <p><span class="status ai">AI-suggested words</span> <span class="field-help">Not yours until you keep them. Record them in your own voice if you use them.</span></p>
+                                    <blockquote>@gap.SuggestedNarration</blockquote>
+                                    <button type="button" class="button-quiet" data-use-narration="@gap.SuggestedNarration">Use these words in a new scene</button>
+                                </div>
+                            }
+                        </article>
+                    }
+                }
+            </div>
+        }
+        @if (earlierSuggestions.Count > 0)
+        {
+            <details><summary>Earlier suggestions (@earlierSuggestions.Count)</summary>
+                <ol class="revision-list">@foreach (var old in earlierSuggestions) { <li><p class="scene-meta"><span class="status @(old.IsFixture ? "" : "info")">@(old.IsFixture ? "Practice" : "AI")</span> @old.Status · @old.CreatedAtUtc.ToLocalTime().ToString("d MMM HH:mm")</p><p>@old.Summary</p></li> }</ol>
+            </details>
+        }
+    }
+</section>

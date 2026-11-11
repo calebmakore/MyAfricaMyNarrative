@@ -39,12 +39,35 @@ public sealed class MediaController(IProjectRepository projects, ICurrentUser cu
         var stored = await storage.WriteOriginalAsync(input, options.Value.MaxUploadBytes, cancellationToken);
         try
         {
-            project.MediaAssets.Add(new MediaAsset(project.Id, stored.Key, Path.GetFileName(model.File.FileName), model.DisplayName, stored.Sha256, inspected.ContentType, inspected.Kind, stored.Length, model.Attribution, DateTimeOffset.UtcNow, probed.DurationMs, probed.Width, probed.Height));
+            var asset = new MediaAsset(project.Id, stored.Key, Path.GetFileName(model.File.FileName), model.DisplayName, stored.Sha256, inspected.ContentType, inspected.Kind, stored.Length, model.Attribution, DateTimeOffset.UtcNow, probed.DurationMs, probed.Width, probed.Height, hasSound: probed.HasAudio);
+            if (!string.IsNullOrWhiteSpace(model.SuppliedBy)) asset.SetContributor(model.SuppliedBy, Enum.IsDefined(model.ContributorUse) ? model.ContributorUse : ContributorUse.NotYetAsked, null, DateTimeOffset.UtcNow);
+            project.MediaAssets.Add(asset);
             await projects.SaveChangesAsync(cancellationToken);
             TempData["Notice"] = "Source saved privately. You can review it below or continue to Shape.";
         }
         catch { await storage.DeleteAsync(stored.Key, cancellationToken); throw; }
         return RedirectToAction("Details", "Projects", new { id = projectId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetContributor(Guid projectId, Guid id, ContributorViewModel model, CancellationToken cancellationToken)
+    {
+        var project = await projects.FindOwnedAsync(projectId, UserId, cancellationToken); if (project is null) return NotFound();
+        var asset = project.MediaAssets.SingleOrDefault(x => x.Id == id); if (asset is null) return NotFound();
+        if (!ModelState.IsValid || !Enum.IsDefined(model.ContributorUse)) { TempData["Error"] = "Enter a contributor name up to 120 characters and a short note."; }
+        else
+        {
+            asset.SetContributor(model.SuppliedBy, model.ContributorUse, model.Note, DateTimeOffset.UtcNow);
+            await projects.SaveChangesAsync(cancellationToken);
+            TempData["Notice"] = asset.ContributorUse switch
+            {
+                ContributorUse.Declined => $"Recorded that {asset.SuppliedBy} declined. Scenes using “{asset.DisplayName}” now block export until replaced.",
+                ContributorUse.Agreed => $"Recorded that {asset.SuppliedBy} agreed. This is your record of their answer.",
+                ContributorUse.NotYetAsked => $"Saved. Ask {asset.SuppliedBy} before the final export.",
+                _ => "Marked as your own material."
+            };
+        }
+        return RedirectToAction("Details", "Projects", new { id = projectId }, "sources");
     }
 
     [HttpGet]
@@ -61,8 +84,18 @@ public sealed class MediaController(IProjectRepository projects, ICurrentUser cu
         var project = await projects.FindOwnedAsync(projectId, UserId, cancellationToken);
         var asset = project?.MediaAssets.SingleOrDefault(x => x.Id == id);
         if (asset is null) return NotFound();
-        asset.Withdraw(DateTimeOffset.UtcNow);
+        var now = DateTimeOffset.UtcNow;
+        asset.Withdraw(now);
+        // Withdrawal stops pending use: queued or running exports for this project are cancelled so they cannot publish.
+        var cancelled = 0;
+        foreach (var pending in (await projects.ListOwnedJobsAsync(projectId, UserId, cancellationToken)).Where(x => x.State is JobState.Queued or JobState.Running))
+        {
+            var job = await projects.FindOwnedJobForUpdateAsync(pending.Id, UserId, cancellationToken);
+            if (job is not null) { job.Cancel(now); cancelled++; }
+        }
         await projects.SaveChangesAsync(cancellationToken);
+        TempData["Notice"] = cancelled == 0 ? "Permission withdrawn. The source can no longer be played or used in new exports."
+            : $"Permission withdrawn and {cancelled} pending export(s) cancelled. Copies already downloaded elsewhere cannot be recalled.";
         return RedirectToAction("Details", "Projects", new { id = projectId });
     }
 

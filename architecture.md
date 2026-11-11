@@ -155,7 +155,8 @@ Log request IDs, usage/cost if supplied and failure categories, not keys or comp
 
 ## 6. Durable jobs
 
-Use a SQL queue consumed by Worker. Do not render inside HTTP requests or unobserved Task.Run calls.
+Use a SQL queue consumed by a hosted job processor (`ExportJobProcessor`). Do not render inside HTTP requests or unobserved Task.Run calls.
+Decision 2026-11-10 (creator request: creators must never start a process by hand): the web app hosts the processor by default (`Jobs:ProcessInWeb`); the standalone Worker hosts the same processor for extra or dedicated capacity. Claims use `UPDLOCK, READPAST`; running attempts renew their lease at a third of its length and stop if it is lost; only the attempt token on the row can complete, fail, renew or report progress. Renders report real step progress (`ProgressStep/ProgressTotal/ProgressNote`) for the Export page.
 States: Queued, Running, Succeeded, Failed, Cancelled.
 Store next-attempt time, current owner/lease and an actionable last failure category.
 An atomic claim prevents two workers owning one attempt; heartbeat/renew the lease.

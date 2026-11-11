@@ -1,10 +1,216 @@
 @model StudioViewModel
-@{ ViewData["Title"] = $"Make · {Model.Project.Title}"; }
-@if (TempData["Error"] is string error) { <div class="notice error" role="alert">@error</div> }
-<header class="page-header"><div><p class="eyebrow">Make</p><h1>Plan with what you have.</h1><p>Declare real people, places, equipment and time. Unavailable resources remain visible and are never silently replaced.</p></div></header>
-<nav class="studio-nav" aria-label="Studio stages"><a asp-controller="Projects" asp-action="Details" asp-route-id="@Model.Project.Id">Record</a><a asp-action="Shape" asp-route-id="@Model.Project.Id">Shape</a><a class="active" aria-current="page">Make</a><a asp-action="Export" asp-route-id="@Model.Project.Id">Export</a></nav>
-<section class="studio-grid"><div class="surface"><p class="eyebrow">Available resources</p><div class="heading-with-help"><h2>Add a real resource</h2><button type="button" class="help-button" data-help-title="Planning with resources" data-help="Add only equipment, people, locations, time and budget that you really have. Availability explains limits such as dates or hours. If something becomes unavailable, mark it unavailable so the plan does not silently rely on it."><span aria-hidden="true">?</span><span class="visually-hidden">Help with resources</span></button></div><form asp-action="AddResource" asp-route-id="@Model.Project.Id" method="post"><label>Type<select name="Kind">@foreach (var kind in Enum.GetValues<ResourceKind>()) { <option value="@kind">@kind</option> }</select></label><label>Name<input name="Name" maxlength="120" required /></label><label>Availability or limit<textarea name="Availability" maxlength="300" rows="3"></textarea></label><button class="button-primary" type="submit">Add resource</button></form></div>
-<aside class="surface"><p class="eyebrow">Resource check</p><h2>What the plan may use</h2>@if (Model.Project.Resources.Count == 0) { <p>No resources declared. Add at least a phone, a location and available time.</p> } else { <div class="resource-list">@foreach (var item in Model.Project.Resources.OrderBy(x => x.Kind).ThenBy(x => x.Name)) { <article class="resource-card @(item.IsAvailable ? "" : "unavailable")"><p class="eyebrow">@item.Kind</p><h3>@item.Name</h3><p>@item.Availability</p><strong>@(item.IsAvailable ? "Available" : "Unavailable")</strong><form asp-action="ToggleResource" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="resourceId" value="@item.Id"/><button type="submit">Mark @(item.IsAvailable ? "unavailable" : "available")</button></form></article> }</div> }</aside></section>
-<section class="surface stage-section"><p class="eyebrow">Scene-linked plan</p><h2>Coverage</h2>@if (Model.CurrentRevision is null) { <p>Shape the story before planning coverage.</p> } else { <div class="scene-list">@foreach (var scene in Model.CurrentRevision.Scenes.OrderBy(x => x.Order)) { <article class="scene-card"><h3>@scene.Order. @scene.Title</h3><p>Real uploaded visual selected · original audio range @scene.StartMs–@scene.EndMs ms.</p>@if (Model.Project.Resources.All(x => !x.IsAvailable)) { <p class="notice error">No available production resources. Review constraints before filming.</p> } else { <p>Available resources: @string.Join(", ", Model.Project.Resources.Where(x => x.IsAvailable).Select(x => x.Name))</p> }</article> }</div> }</section>
-@{ var planProposals = Model.Project.StudioProposals.Where(x => x.Kind == ProposalKind.ResourcePlan).OrderByDescending(x => x.CreatedAtUtc).ToList(); }
-<section class="surface stage-section" id="plan-proposals"><div class="section-heading"><div><p class="eyebrow">Reviewed replanning</p><h2>Compare a resource-aware plan</h2></div><span class="status">Fixture · not Live AI</span></div><p>The fixture uses only resources currently marked available. It never invents prices, access, travel time or completed footage.</p><form asp-action="GenerateResourceFixture" asp-route-id="@Model.Project.Id" method="post"><button type="submit">Generate plan from available resources</button></form>@foreach (var proposal in planProposals) { <article class="proposal-card"><p><strong>@proposal.Status</strong> · @proposal.CreatedAtUtc.ToLocalTime().ToString("d MMM yyyy HH:mm")</p><p>@proposal.Summary</p>@if (proposal.Status == ProposalStatus.Pending) { <div class="proposal-actions"><form asp-action="ReviewProposal" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="proposalId" value="@proposal.Id"/><button class="button-primary" name="apply" value="true" type="submit">Apply this plan</button><button name="apply" value="false" type="submit">Reject and keep current plan</button></form></div> }</article> }</section>
+@{
+    ViewData["Title"] = $"Make · {Model.Project.Title}"; ViewData["StageBar"] = true;
+    var available = Model.Project.Resources.Where(x => x.IsAvailable).OrderBy(x => x.Kind).ThenBy(x => x.Name).ToList();
+    var resourceById = Model.Project.Resources.ToDictionary(x => x.Id);
+    var footage = Model.Project.MediaAssets.Where(x => x.Kind != MediaKind.Audio && x.PermissionStatus == PermissionStatus.Granted).ToList();
+    var sceneTitles = Model.CurrentRevision?.Scenes.OrderBy(x => x.Order).Select(x => x.Title).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [];
+    var kinds = new Dictionary<ResourceKind, (string Label, string Example)> {
+        [ResourceKind.Equipment] = ("Equipment", "e.g. My phone, a tripod"),
+        [ResourceKind.Person] = ("Person", "e.g. My cousin Tendai, can film"),
+        [ResourceKind.Location] = ("Place", "e.g. Mbuya’s workshop"),
+        [ResourceKind.Time] = ("Time", "e.g. Saturday afternoon"),
+        [ResourceKind.Budget] = ("Budget", "e.g. $10 for transport") };
+    var plans = Model.Project.ProductionPlans.OrderByDescending(x => x.Version).ToList();
+    var approvedPlan = plans.FirstOrDefault(x => x.Status == PlanStatus.Approved);
+    var proposedPlan = plans.FirstOrDefault(x => x.Status == PlanStatus.Proposed);
+    var currentResourceHash = MyAfricaMyNarrative.Application.ProductionPlanContext.HashResources(Model.Project.Resources);
+    var resourceNames = Model.Project.Resources.ToDictionary(x => x.Id, x => x.Name);
+    var assetNames = Model.Project.MediaAssets.ToDictionary(x => x.Id, x => x.DisplayName);
+    var allScenes = Model.Project.StoryRevisions.SelectMany(x => x.Scenes).ToDictionary(x => x.Id);
+    var intentForPlan = Model.Project.CreatorIntents.SingleOrDefault();
+    var pictures = Model.Project.MediaAssets.Count(x => x.Kind != MediaKind.Audio && x.PermissionStatus == PermissionStatus.Granted);
+    var hours = Model.Project.Resources.Where(x => x.IsAvailable && x.Kind == ResourceKind.Time && x.Minutes is not null).Sum(x => x.Minutes!.Value) / 60.0;
+    string Count(ResourceKind kind, string one, string many) { var n = available.Count(x => x.Kind == kind); return $"{n} {(n == 1 ? one : many)}"; }
+    bool IsStale(ProductionPlan plan) => plan.ResourceHash != currentResourceHash || Model.CurrentRevision is null || plan.StoryHash != Model.CurrentRevision.SnapshotHash;
+}
+<partial name="_StudioHeader" model="new StudioHeaderModel(Model.Project, Model.Progress, StudioStage.Make)" />
+
+<section class="step @(Model.Project.Resources.Count > 0 ? "is-done" : "")" id="resources">
+    <div class="step-head"><span class="step-number" aria-hidden="true"><span>1</span></span><div><div class="heading-with-help"><h2>What do you have?</h2><button type="button" class="help-button" data-help-title="Make it with what I have" data-help="List only the equipment, people, places, time and money you really have. Shot suggestions use only what is marked available. If something falls through, mark it unavailable — shots that relied on it are flagged so you can plan again with what remains."><span aria-hidden="true">?</span><span class="visually-hidden">Help with resources</span></button></div><p>Make it with what you have — one phone and an afternoon is enough.</p></div></div>
+    @if (Model.Project.Resources.Count > 0)
+    {
+        <div class="resource-list">
+        @foreach (var item in Model.Project.Resources.OrderBy(x => x.Kind).ThenBy(x => x.Name))
+        {
+            <article class="resource-card @(item.IsAvailable ? "" : "unavailable")">
+                <span class="status kind-tag @(item.IsAvailable ? "good" : "")">@kinds[item.Kind].Label · @(item.IsAvailable ? "Available" : "Not available")</span>
+                <h3>@item.Name</h3>
+                @if (item.Minutes is { } mins) { <p><strong>@(mins % 60 == 0 ? $"{mins / 60} h" : $"{mins / 60.0:0.#} h")</strong> of filming time</p> }
+                @if (!string.IsNullOrWhiteSpace(item.Availability)) { <p>@item.Availability</p> }
+                <form asp-action="ToggleResource" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="resourceId" value="@item.Id" /><button type="submit" class="button-quiet">@(item.IsAvailable ? "It fell through" : "It’s available again")</button></form>
+            </article>
+        }
+        </div>
+    }
+    <details open="@(Model.Project.Resources.Count == 0)"><summary>Add something you have</summary>
+        <form asp-action="AddResource" asp-route-id="@Model.Project.Id" method="post">
+            <div class="field-row">
+                <label>Type<select name="Kind">@foreach (var kind in kinds) { <option value="@kind.Key">@kind.Value.Label</option> }</select></label>
+                <label>Name<input name="Name" maxlength="120" required placeholder="e.g. My phone" /></label>
+            </div>
+            <label>Hours of filming time <span class="field-help">for Time only — the plan fits filming into it</span><input name="Hours" type="number" min="0.25" max="168" step="0.25" inputmode="decimal" placeholder="e.g. 2" /></label>
+            <label>When or limits <span class="field-help">optional</span><input name="Availability" maxlength="300" placeholder="e.g. Free on Saturday, 2–5 pm" /></label>
+            <button class="button-primary" type="submit">Add</button>
+        </form>
+    </details>
+</section>
+
+<section class="step @(approvedPlan is not null && !IsStale(approvedPlan) ? "is-done" : "")" id="plan">
+    <div class="step-head"><span class="step-number" aria-hidden="true"><span>2</span></span><div><div class="heading-with-help"><h2>Make it with what I have</h2><button type="button" class="help-button" data-help-title="Your production plan" data-help="The plan goes scene by scene: what to record, about how long it lasts on screen, and how it serves the story. It uses only what you marked available and fits filming into your time. If something falls through, mark it unavailable and make a new plan — you will see both side by side and choose. Nothing changes until you approve."><span aria-hidden="true">?</span><span class="visually-hidden">Help with the production plan</span></button></div><p>A shoot plan that fits your people, place, kit and time.</p></div></div>
+
+    <ul class="have-chips" aria-label="What the plan can use">
+        <li>@Count(ResourceKind.Equipment, "piece of kit", "pieces of kit")</li>
+        <li>@Count(ResourceKind.Location, "place", "places")</li>
+        <li>@Count(ResourceKind.Person, "person", "people")</li>
+        <li>@(hours > 0 ? $"{hours:0.##} h" : "no time set")</li>
+        <li>@pictures picture@(pictures == 1 ? "" : "s")</li>
+    </ul>
+
+    @if (intentForPlan is not null && !string.IsNullOrWhiteSpace(intentForPlan.ProtectedTerms))
+    {
+        <p class="protected-strip"><span class="status info">Protected</span> @intentForPlan.ProtectedTerms</p>
+    }
+
+    @if (Model.CurrentRevision is null || Model.CurrentRevision.Scenes.Count == 0)
+    {
+        <div class="empty-state"><h3>No scenes yet</h3><p>Build scenes in <a asp-action="Shape" asp-route-id="@Model.Project.Id" asp-fragment="add-scene">Shape</a>, then plan the shoot here.</p></div>
+    }
+    else
+    {
+        <div class="inline-actions">
+            @if (Model.AiMode == "Live")
+            {
+                <form asp-controller="Production" asp-action="GeneratePlan" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="live" value="true" /><button type="submit" class="button-primary" data-busy-text="Planning…">@(approvedPlan is null ? "Plan my shoot with AI" : "Re-plan with AI")</button></form>
+            }
+            <form asp-controller="Production" asp-action="GeneratePlan" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="live" value="false" /><button type="submit" class="@(Model.AiMode == "Live" ? "button-quiet" : "button-primary")">Practice plan (no AI)</button></form>
+            @if (Model.AiMode != "Live") { <span class="field-help">AI planning is off in this studio. The practice planner uses simple rules and only what you declared.</span> }
+        </div>
+
+        @if (approvedPlan is not null && IsStale(approvedPlan) && proposedPlan is null)
+        {
+            <p class="notice">Something changed since plan @approvedPlan.Version was approved. Make a new plan to see what it means for the shoot.</p>
+        }
+
+        var shown = new[] { approvedPlan, proposedPlan }.Where(x => x is not null).Select(x => x!).ToList();
+        @if (shown.Count > 0)
+        {
+            var compare = approvedPlan is not null && proposedPlan is not null;
+            var sceneOrder = (Model.CurrentRevision?.Scenes.OrderBy(x => x.Order).Select(x => x.Title) ?? [])
+                .Concat(shown.SelectMany(x => x.Steps).OrderBy(x => x.Order).Select(x => x.SceneTitle)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            <div class="plan-board @(compare ? "is-compare" : "")">
+                <div class="plan-head-row">
+                    <div class="plan-scene-col" aria-hidden="true"></div>
+                    @foreach (var plan in shown)
+                    {
+                        <div class="plan-head @(plan.Status == PlanStatus.Proposed ? "is-proposed" : "")">
+                            <p><span class="status @(plan.Status == PlanStatus.Approved ? "good" : "warn")">@(plan.Status == PlanStatus.Approved ? "Approved" : "New — review it")</span> <span class="status @(plan.IsFixture ? "" : "info")">@(plan.IsFixture ? "Practice plan" : "AI suggestion")</span></p>
+                            <h3>Plan @plan.Version</h3>
+                            <p class="field-help">@plan.Source · @plan.CreatedAtUtc.ToLocalTime().ToString("d MMM HH:mm") · filming @plan.PlannedShootMinutes min@(plan.TimeBudgetMinutes is { } b ? $" of {b}" : "")</p>
+                            <p>@plan.Summary</p>
+                            @if (plan.Status == PlanStatus.Proposed) { <p class="plan-change"><strong>What changed:</strong> @plan.ChangeNote</p> }
+                        </div>
+                    }
+                </div>
+                @foreach (var title in sceneOrder)
+                {
+                    var oldStep = approvedPlan?.Steps.FirstOrDefault(x => string.Equals(x.SceneTitle, title, StringComparison.OrdinalIgnoreCase));
+                    var newStep = proposedPlan?.Steps.FirstOrDefault(x => string.Equals(x.SceneTitle, title, StringComparison.OrdinalIgnoreCase));
+                    var anyStep = newStep ?? oldStep;
+                    var scene = anyStep is not null && allScenes.TryGetValue(anyStep.SceneId, out var sc) ? sc : Model.CurrentRevision?.Scenes.FirstOrDefault(x => string.Equals(x.Title, title, StringComparison.OrdinalIgnoreCase));
+                    var changed = compare && (oldStep is null || newStep is null || oldStep.Approach != newStep.Approach || oldStep.Instruction != newStep.Instruction);
+                    <div class="plan-row @(changed ? "is-changed" : "")">
+                        <div class="plan-scene-col">
+                            <p class="scene-meta"><strong>@title</strong></p>
+                            @if (scene is not null && scene.TextOrigin == TextOrigin.SourceQuotation)
+                            {
+                                <p class="protected-quote"><span class="status info">Protected quote</span> “@(scene.Text.Length > 0 ? scene.Text : scene.EffectiveCaption)”</p>
+                            }
+                        </div>
+                        @if (compare)
+                        {
+                            <div class="plan-cell"><span class="plan-cell-label">Plan @approvedPlan!.Version</span><partial name="_PlanStep" model="new PlanStepViewModel(oldStep, false, resourceNames, assetNames)" /></div>
+                            <div class="plan-cell"><span class="plan-cell-label">Plan @proposedPlan!.Version</span><partial name="_PlanStep" model="new PlanStepViewModel(newStep, changed, resourceNames, assetNames)" /></div>
+                        }
+                        else
+                        {
+                            <div class="plan-cell"><partial name="_PlanStep" model="new PlanStepViewModel(anyStep, false, resourceNames, assetNames)" /></div>
+                        }
+                    </div>
+                }
+            </div>
+            @if (proposedPlan is not null)
+            {
+                <div class="plan-decision">
+                    @if (IsStale(proposedPlan)) { <p class="notice error">Your story or resources changed after plan @proposedPlan.Version was made. Make a fresh plan.</p> }
+                    <form asp-controller="Production" asp-action="ReviewPlan" asp-route-id="@Model.Project.Id" method="post" class="inline-actions"><input type="hidden" name="planId" value="@proposedPlan.Id" />
+                        <button class="button-primary" name="approve" value="true" type="submit" disabled="@IsStale(proposedPlan)">Approve plan @proposedPlan.Version</button>
+                        <button class="button-quiet" name="approve" value="false" type="submit">@(approvedPlan is null ? "Reject it" : $"Keep plan {approvedPlan.Version}")</button>
+                    </form>
+                    <p class="field-help">Approving puts its filming steps on your shot list. Your words, quotes and story order never change here.</p>
+                </div>
+            }
+        }
+        var history = plans.Where(x => x.Status is PlanStatus.Superseded or PlanStatus.Rejected).ToList();
+        @if (history.Count > 0)
+        {
+            <details><summary>Earlier plans (@history.Count)</summary>
+                <ol class="revision-list">@foreach (var old in history) { <li><p class="scene-meta"><strong>Plan @old.Version</strong> · @old.Status · @old.Source · @old.CreatedAtUtc.ToLocalTime().ToString("d MMM HH:mm")</p><p>@old.Summary</p>@if (old.ChangeNote.Length > 0) { <p class="field-help">@old.ChangeNote</p> }</li> }</ol>
+            </details>
+        }
+    }
+</section>
+
+<section class="step" id="shot-list">
+    <div class="step-head"><span class="step-number" aria-hidden="true"><span>3</span></span><div><div class="heading-with-help"><h2>Shot list</h2><button type="button" class="help-button" data-help-title="Planning shots" data-help="A shot is extra footage you plan to film for a scene. It counts as missing until you film it, upload it in Record, and mark it captured — or drop it and use the pictures you already have. Scenes with no planned shots simply use their current picture."><span aria-hidden="true">?</span><span class="visually-hidden">Help with the shot list</span></button></div><p>Plan any extra footage, scene by scene.</p></div></div>
+    @if (Model.CurrentRevision is null || sceneTitles.Count == 0)
+    {
+        <div class="empty-state"><h3>No scenes yet</h3><p>Build scenes in <a asp-action="Shape" asp-route-id="@Model.Project.Id" asp-fragment="add-scene">Shape</a>, then plan shots here.</p></div>
+    }
+    else
+    {
+        <p class="field-help">Approving a plan above fills this list. You can also add your own shots.</p>
+        <ol class="scene-list" style="margin-top:1rem">
+        @foreach (var scene in Model.CurrentRevision.Scenes.OrderBy(x => x.Order))
+        {
+            var shots = Model.Project.Shots.Where(x => x.MatchesScene(scene.Title)).OrderBy(x => x.CreatedAtUtc).ToList();
+            <li class="scene-card">
+                <div class="scene-top"><span class="scene-order">@scene.Order</span><div><h3>@scene.Title</h3><p class="scene-meta">Picture now: @(Model.Project.MediaAssets.FirstOrDefault(x => x.Id == scene.VisualAssetId)?.DisplayName ?? "missing")</p></div></div>
+                @if (shots.Count == 0) { <p class="field-help">No extra shots — this scene uses the picture it has.</p> }
+                @foreach (var shot in shots)
+                {
+                    var missing = shot.ResourceIds.Where(id => !resourceById.TryGetValue(id, out var r) || !r.IsAvailable).Select(id => resourceById.TryGetValue(id, out var r) ? r.Name : "a removed item").ToList();
+                    var cls = shot.Status == ShotStatus.Dropped ? "unavailable" : shot.Status == ShotStatus.Captured ? "captured" : "";
+                    <div class="shot-card @cls">
+                        <p><span class="status @(shot.Status == ShotStatus.Captured ? "good" : shot.Status == ShotStatus.Planned ? "warn" : "")">@(shot.Status == ShotStatus.Planned ? "To film" : shot.Status == ShotStatus.Captured ? "Filmed" : "Dropped")</span>@if (shot.IsSuggestion) { <span class="status">Suggestion</span> }</p>
+                        <p><strong>@shot.Description</strong></p>
+                        @if (shot.ResourceIds.Count > 0) { <p class="field-help">Uses: @string.Join(", ", shot.ResourceIds.Select(id => resourceById.TryGetValue(id, out var r) ? r.Name : "removed item"))</p> }
+                        @if (missing.Count > 0 && shot.Status == ShotStatus.Planned) { <p class="notice error">@string.Join(", ", missing) fell through. Make a new plan in step 2, or drop this shot.</p> }
+                        @if (shot.Status == ShotStatus.Captured) { <p class="field-help">Filmed as “@(Model.Project.MediaAssets.FirstOrDefault(x => x.Id == shot.CapturedAssetId)?.DisplayName ?? "removed footage")”. Choose it as the scene picture in Shape if you want it in the film.</p> }
+                        <div class="inline-actions">
+                        @if (shot.Status == ShotStatus.Planned)
+                        {
+                            @if (footage.Count > 0)
+                            {
+                                <form asp-controller="Production" asp-action="CaptureShot" asp-route-id="@Model.Project.Id" method="post" class="inline-form"><input type="hidden" name="shotId" value="@shot.Id" /><label class="visually-hidden" for="capture-@shot.Id">Uploaded footage for this shot</label><select id="capture-@shot.Id" name="assetId">@foreach (var item in footage) { <option value="@item.Id">@item.DisplayName</option> }</select><button type="submit" class="button-quiet">Mark filmed</button></form>
+                            }
+                            else { <a class="button-quiet button" asp-controller="Projects" asp-action="Details" asp-route-id="@Model.Project.Id" asp-fragment="add-source">Upload footage</a> }
+                            <form asp-controller="Production" asp-action="SetShotStatus" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="shotId" value="@shot.Id" /><button name="drop" value="true" type="submit" class="button-quiet">Drop</button></form>
+                        }
+                        else { <form asp-controller="Production" asp-action="SetShotStatus" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="shotId" value="@shot.Id" /><button name="drop" value="false" type="submit" class="button-quiet">Plan it again</button></form> }
+                        </div>
+                    </div>
+                }
+            </li>
+        }
+        </ol>
+        <details><summary>Plan your own shot</summary>
+            <form asp-controller="Production" asp-action="AddShot" asp-route-id="@Model.Project.Id" method="post">
+                <label>For scene<select name="SceneTitle" required>@foreach (var title in sceneTitles) { <option value="@title">@title</option> }</select></label>
+                <label>What to film<textarea name="Description" maxlength="500" rows="2" required placeholder="e.g. Close-up of hands at the sewing machine"></textarea></label>
+                @if (available.Count > 0) { <fieldset><legend>What you’ll use</legend>@foreach (var item in available) { <label class="check"><input type="checkbox" name="ResourceIds" value="@item.Id" /> <span>@item.Name <span class="field-help">@kinds[item.Kind].Label</span></span></label> }</fieldset> }
+                <button class="button-primary" type="submit">Add shot</button>
+            </form>
+        </details>
+    }
+</section>

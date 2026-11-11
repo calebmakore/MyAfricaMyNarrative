@@ -1,5 +1,33 @@
 @model IReadOnlyList<Project>
-@{ ViewData["Title"] = "Projects"; }
-<header class="dashboard-hero"><div><p class="eyebrow">Your private documentary studio</p><h1>Stories shaped<br /><span>in your voice.</span></h1><p class="hero-copy">Bring together original recordings, images and lived experience. You stay in control from first source to final film.</p></div><div class="hero-badge" aria-hidden="true"><span>Record</span><span>Shape</span><span>Make</span><span>Export</span></div></header>
-<section class="surface start-card"><div><p class="eyebrow">Begin a new story</p><h2>Start a documentary</h2><p>Give it a working title. You can refine it as the story takes shape.</p></div><form asp-action="Create" method="post"><label for="Title">Project title</label><div class="inline-form"><input id="Title" name="Title" maxlength="120" placeholder="e.g. The hands that taught me" required /><button class="button-primary" type="submit">Start project <span aria-hidden="true">→</span></button></div></form></section>
-<section><h2>Your projects</h2>@if (Model.Count == 0) { <div class="empty-state"><h3>No stories here yet</h3><p>Give your first documentary a working title. You can change it later.</p></div> } else { <div class="card-grid">@foreach (var item in Model) { <article class="project-card"><p class="status">@(item.IsArchived ? "Archived" : "Private")</p><h3><a asp-action="Details" asp-route-id="@item.Id">@item.Title</a></h3><p>Updated @item.UpdatedAtUtc.ToString("d MMM yyyy")</p></article> }</div> }</section>
+@{ ViewData["Title"] = "My stories"; var active = Model.Where(x => !x.IsArchived).ToList(); var archived = Model.Where(x => x.IsArchived).ToList(); }
+@if (TempData["Error"] is string error) { <div class="notice error" role="alert">@error</div> }
+<header class="dashboard-hero">
+    <div><p class="eyebrow">Your private studio</p><h1>Every family has<br /><span>a story to keep.</span></h1><p class="hero-copy">Start with a voice note and a photograph. You direct every step, and your sources stay private.</p></div>
+    <ol class="hero-steps" aria-label="The four stages"><li><strong>Record</strong><span>Voice, photos, clips</span></li><li><strong>Shape</strong><span>Words and scenes</span></li><li><strong>Make</strong><span>Plan with what you have</span></li><li><strong>Export</strong><span>Credits and film</span></li></ol>
+</header>
+<section class="surface start-card" id="start">
+    <div><p class="eyebrow">New story</p><h2>What will you call it?</h2><p>A working title is fine — you can change it any time.</p></div>
+    <form asp-action="Create" method="post"><label for="Title" class="visually-hidden">Story title</label><div class="inline-form"><input id="Title" name="Title" maxlength="120" placeholder="e.g. The hands that taught me" required /><button class="button-primary" type="submit">Start story →</button></div>
+        <details class="start-extra"><summary>Start from an idea (optional)</summary>
+            <label for="StoryType">What kind of story is it?</label>
+            <div class="type-chips" role="radiogroup" aria-label="Story type">@foreach (var t in StoryTypes.All) { <label class="type-chip"><input type="radio" name="StoryType" value="@((int)t.Type)" /> <span>@t.Label</span></label> }</div>
+            <label for="Idea">Your idea, in your own words <span class="field-help">Paste notes or a few lines — the coach uses them, and they stay yours.</span></label>
+            <textarea id="Idea" name="Idea" maxlength="2000" rows="4" placeholder="e.g. How my grandmother's tailoring shaped the streetwear I make now in Harare"></textarea>
+        </details>
+        <div asp-validation-summary="All" class="text-danger"></div></form>
+</section>
+<section aria-labelledby="stories-heading">
+    <div class="section-heading"><h2 id="stories-heading">Your stories</h2>@if (active.Count > 0) { <span class="status">@active.Count</span> }</div>
+    @if (active.Count == 0)
+    {
+        <div class="empty-state"><h3>No stories yet</h3><p>Give your first story a title above. It only takes a voice note and a photo to begin.</p></div>
+    }
+    else
+    {
+        <div class="card-grid">@foreach (var item in active) { <article class="project-card"><p><span class="status good">Private</span>@if (item.StoryType != StoryType.Unspecified) { <span class="status">@StoryTypes.Label(item.StoryType)</span> }</p><h3><a asp-action="Details" asp-route-id="@item.Id">@item.Title</a></h3><p>Updated @item.UpdatedAtUtc.ToLocalTime().ToString("d MMM yyyy")</p><span class="open-link" aria-hidden="true">Open studio →</span></article> }</div>
+    }
+    @if (archived.Count > 0)
+    {
+        <details class="panel"><summary><span class="summary-text"><strong>Archived</strong><span>@archived.Count stor@(archived.Count == 1 ? "y" : "ies") put away</span></span></summary><div class="panel-body"><div class="card-grid">@foreach (var item in archived) { <article class="project-card"><span class="status">Archived</span><h3><a asp-action="Details" asp-route-id="@item.Id">@item.Title</a></h3><p>Updated @item.UpdatedAtUtc.ToLocalTime().ToString("d MMM yyyy")</p></article> }</div></div></details>
+    }
+</section>

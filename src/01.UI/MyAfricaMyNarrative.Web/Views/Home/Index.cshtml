@@ -1,8 +1,26 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
-}
-
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+@{ ViewData["Title"] = "Your story. Your voice. Our Africa."; }
+<div class="landing">
+    <header class="dashboard-hero">
+        <div>
+            <p class="eyebrow">A documentary studio for your phone</p>
+            <h1>Your story.<br />Your voice.<br /><span>Our Africa.</span></h1>
+            <p class="hero-copy">Turn a voice note, a few family photographs and an afternoon into a short film you direct — with your words kept exactly as you said them.</p>
+            <div class="landing-actions"><a class="button-primary button-large" asp-controller="Account" asp-action="Register">Start your story</a><a class="button button-quiet" asp-controller="Account" asp-action="Login">I have an account</a></div>
+        </div>
+        <ol class="hero-steps" aria-label="How it works">
+            <li><strong>1 · Record</strong><span>Your voice, photos and clips</span></li>
+            <li><strong>2 · Shape</strong><span>Pick the words and scenes</span></li>
+            <li><strong>3 · Make</strong><span>Plan with what you have</span></li>
+            <li><strong>4 · Export</strong><span>A 60–90 second film</span></li>
+        </ol>
+    </header>
+    <section class="feature-grid" aria-label="What makes it different">
+        <article><span class="feature-mark" aria-hidden="true"><span>1</span></span><h3>Your words stay yours</h3><p>Every quote links back to the moment it was spoken. Nothing is put in your mouth.</p></article>
+        <article><span class="feature-mark" aria-hidden="true"><span>2</span></span><h3>Make it with what you have</h3><p>One phone, one afternoon. Plans use only the people, places and time you really have.</p></article>
+        <article><span class="feature-mark" aria-hidden="true"><span>3</span></span><h3>Keep it for the family</h3><p>Download the film, the original recordings and the words — a record for the next generation.</p></article>
+        <article><span class="feature-mark" aria-hidden="true"><span>4</span></span><h3>Record on your phone</h3><p>Voice notes and video, sound and picture together, straight from the browser — no app to install.</p></article>
+        <article><span class="feature-mark" aria-hidden="true"><span>5</span></span><h3>Explain your words once</h3><p>Local expressions stay exactly as spoken. A short explanation you approve appears the first time each is on screen.</p></article>
+        <article><span class="feature-mark" aria-hidden="true"><span>6</span></span><h3>AI suggests, you decide</h3><p>Shoot plans, story coaching and word finding are labelled suggestions. Nothing changes until you approve it.</p></article>
+    </section>
+    <blockquote class="proverb">“Until the lion learns to write, the story will glorify the hunter.”<cite>African proverb</cite></blockquote>
 </div>

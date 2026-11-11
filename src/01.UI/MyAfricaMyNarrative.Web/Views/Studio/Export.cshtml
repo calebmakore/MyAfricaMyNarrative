@@ -1,10 +1,185 @@
 @model StudioViewModel
-@{ ViewData["Title"] = $"Export · {Model.Project.Title}"; }
-@if (TempData["Error"] is string error) { <div class="notice error" role="alert">@error</div> }
-@if (TempData["Notice"] is string notice) { <div class="notice" role="status">@notice</div> }
-<header class="page-header"><div><p class="eyebrow">Export</p><h1>Check it before you make it.</h1><p>Mode: <strong>@Model.AiMode</strong>. Manual work stays manual; missing Live configuration never creates fabricated output.</p></div></header>
-<nav class="studio-nav" aria-label="Studio stages"><a asp-controller="Projects" asp-action="Details" asp-route-id="@Model.Project.Id">Record</a><a asp-action="Shape" asp-route-id="@Model.Project.Id">Shape</a><a asp-action="Make" asp-route-id="@Model.Project.Id">Make</a><a class="active" aria-current="page">Export</a></nav>
-<section class="studio-grid"><div class="surface"><p class="eyebrow">Readiness</p><div class="heading-with-help"><h2>@(Model.Readiness.CanExportFinal ? "Ready for final export" : Model.Readiness.CanPreview ? "Ready for a labelled preview" : "Needs attention")</h2><button type="button" class="help-button" data-help-title="Preview and final export" data-help="A preview is a short test of your approved scenes. The final film requires an approved current revision lasting 60–90 seconds. Queueing creates durable work for the Worker; refresh to see Queued, Running, Succeeded or Failed."><span aria-hidden="true">?</span><span class="visually-hidden">Help with export readiness</span></button></div><ul class="checklist">@if (Model.Readiness.Issues.Count == 0) { <li class="pass">Current revision, sources, permission, timing and duration are ready.</li> } else { @foreach (var issue in Model.Readiness.Issues) { <li>@issue</li> } }</ul><p>Total selected duration: <strong>@(Model.Readiness.DurationMs/1000d) seconds</strong></p><div class="export-actions"><form asp-action="QueueExport" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="final" value="false"/><button class="button-primary" type="submit" disabled="@(!Model.Readiness.CanPreview)">Queue preview</button></form><form asp-action="QueueExport" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="final" value="true"/><button class="button-primary" type="submit" disabled="@(!Model.Readiness.CanExportFinal)">Queue 1080 × 1920 final</button></form></div></div>
-<aside class="surface"><p class="eyebrow">Durable work</p><h2>Export jobs</h2>@if (Model.Jobs.Count == 0) { <p>No exports queued.</p> } else { <div class="job-list">@foreach (var job in Model.Jobs) { <article><strong>@job.Kind</strong><p>@job.State · attempts @job.Attempts</p>@if (!string.IsNullOrWhiteSpace(job.LastFailure)) { <p class="notice error">@job.LastFailure</p> }@if (job.State is JobState.Queued or JobState.Running) { <form asp-action="CancelJob" asp-route-id="@Model.Project.Id" method="post"><input type="hidden" name="jobId" value="@job.Id"/><button class="button-danger" type="submit">Cancel export</button></form> }</article> }</div> }</aside></section>
-<section class="surface stage-section"><p class="eyebrow">Private downloads</p><div class="heading-with-help"><h2>Current artifacts</h2><button type="button" class="help-button" data-help-title="Your generated files" data-help="Artifacts are files made from the currently approved story. PreviewVideo or FinalVideo is the MP4 film; Captions is the SRT subtitle file. Open them in a new tab to review while keeping the studio visible. Changes to the story make older outputs stale."><span aria-hidden="true">?</span><span class="visually-hidden">Help with current artifacts</span></button></div>@if (Model.Artifacts.Count == 0) { <p>No verified files yet. A successful Worker render will appear here.</p> } else { <div class="artifact-list">@foreach (var artifact in Model.Artifacts) { <article><strong>@artifact.Kind</strong><p>@(artifact.ByteLength/1024d/1024d) MiB · @artifact.Sha256[..12]</p><a class="button-primary" asp-action="Download" asp-route-id="@artifact.Id" target="_blank" rel="noopener">Open authorised file in new tab</a></article> }</div> }</section>
-@if (Model.CurrentRevision is not null && Model.Artifacts.Any(x => x.StoryRevisionId == Model.CurrentRevision.Id)) { <section class="surface stage-section"><p class="eyebrow">Preservation</p><h2>Keep the approved story understandable</h2><p>Download a ZIP containing permitted referenced originals, the film, captions, reviewed transcript timing, versioned metadata and SHA-256 checksums.</p><a class="button-primary" asp-action="PreservationArchive" asp-route-id="@Model.Project.Id">Download preservation ZIP</a></section> }
+@{
+    ViewData["Title"] = $"Export · {Model.Project.Title}"; ViewData["StageBar"] = true;
+    var id = Model.Project.Id;
+    var revision = Model.CurrentRevision;
+    var credits = CreditsRules.Ordered(Model.Project.Credits);
+    var sources = Model.Project.MediaAssets.OrderBy(x => x.DisplayName).ToList();
+    var current = revision is null ? new List<ExportArtifact>() : Model.Artifacts
+        .Where(x => x.StoryRevisionId == revision.Id && x.SnapshotHash == revision.SnapshotHash && (x.CreditsHash.Length == 0 || x.CreditsHash == Model.Readiness.CreditsHash)).ToList();
+    var film = current.OrderByDescending(x => x.Kind == ArtifactKind.FinalVideo).ThenByDescending(x => x.CreatedAtUtc).FirstOrDefault(x => x.Kind is ArtifactKind.FinalVideo or ArtifactKind.PreviewVideo);
+    var activeJob = Model.Jobs.FirstOrDefault(x => x.State is JobState.Queued or JobState.Running);
+    var durationSeconds = Model.Readiness.DurationMs / 1000d;
+    string? FixHref(FixPlace place)
+    {
+        string shape(string a) => Url.Action("Shape", new { id })! + "#" + a;
+        return place switch
+        {
+            FixPlace.ShapeCut => shape("current-cut"),
+            FixPlace.ShapeAddScene => shape("add-scene"),
+            FixPlace.ShapeLanguageReview => shape("language-review"),
+            FixPlace.ShapeGlossary => shape("glossary"),
+            FixPlace.Sources => Url.Action("Details", "Projects", new { id }) + "#sources",
+            FixPlace.MakeShots => Url.Action("Make", new { id }) + "#shot-list",
+            FixPlace.Credits => "#credits",
+            _ => null
+        };
+    }
+    var guide = Model.Readiness.Issues.Select(ReadinessGuide.Describe).ToList();
+    var beforePreview = guide.Take(Model.Readiness.BlockingCount).ToList();
+    var beforeFinal = guide.Skip(Model.Readiness.BlockingCount).ToList();
+    string Label(ArtifactKind kind) => kind switch { ArtifactKind.FinalVideo => "Final film (MP4)", ArtifactKind.PreviewVideo => "Preview film (MP4)", ArtifactKind.Captions => "Captions (SRT)", ArtifactKind.TranslatedCaptions => "Translated captions (SRT)", _ => kind.ToString() };
+}
+<partial name="_StudioHeader" model="new StudioHeaderModel(Model.Project, Model.Progress, StudioStage.Export)" />
+
+<section class="step @(Model.Readiness.CreditsApproved ? "is-done" : "")" id="credits">
+    <div class="step-head"><span class="step-number" aria-hidden="true"><span>1</span></span><div><div class="heading-with-help"><h2>Credits</h2><button type="button" class="help-button" data-help-title="Credits" data-help="Name the storyteller, the people who appear or helped, and whoever made the photos or footage. Credits appear on a 5-second card at the end of your film and in your preservation archive. Approving covers these exact credits — change one and you approve again."><span aria-hidden="true">?</span><span class="visually-hidden">Help with credits</span></button></div><p>Who made this story? Shown on a 5-second card at the end.</p></div><span class="status @(Model.Readiness.CreditsApproved ? "good" : credits.Count == 0 ? "" : "warn")">@(Model.Readiness.CreditsApproved ? "Approved" : credits.Count == 0 ? "None yet" : "Needs approval")</span></div>
+    @if (credits.Count > 0)
+    {
+        <ol class="credit-list">
+        @foreach (var credit in credits)
+        {
+            <li><strong>@credit.Role:</strong> @credit.Name @if (credit.SourceAssetId is Guid sid) { <span class="field-help">· @(sources.FirstOrDefault(x => x.Id == sid)?.DisplayName ?? "removed source")</span> }
+                <details><summary>Edit</summary>
+                    <form asp-controller="Production" asp-action="UpdateCredit" asp-route-id="@id" method="post"><input type="hidden" name="creditId" value="@credit.Id" />
+                        <div class="field-row"><label>Role<input name="Role" maxlength="80" value="@credit.Role" required /></label><label>Name<input name="Name" maxlength="120" value="@credit.Name" required /></label></div>
+                        <div class="field-row"><label>Linked source <span class="field-help">optional</span><select name="SourceAssetId"><option value="">None</option>@foreach (var item in sources) { <option value="@item.Id" selected="@(item.Id == credit.SourceAssetId)">@item.DisplayName</option> }</select></label><label>Position<input name="Order" type="number" min="0" max="1000" value="@credit.Order" /></label></div>
+                        <div class="inline-actions"><button class="button-primary" type="submit">Save</button></div>
+                    </form>
+                    <form asp-controller="Production" asp-action="RemoveCredit" asp-route-id="@id" method="post" style="margin-top:.6rem"><input type="hidden" name="creditId" value="@credit.Id" /><button class="button-danger button-quiet" type="submit">Remove</button></form>
+                </details>
+            </li>
+        }
+        </ol>
+    }
+    <details open="@(credits.Count == 0)"><summary>Add a credit</summary>
+        <form asp-controller="Production" asp-action="AddCredit" asp-route-id="@id" method="post">
+            <div class="field-row"><label>Role<input name="Role" maxlength="80" list="credit-roles" placeholder="e.g. Storyteller" required /></label><label>Name<input name="Name" maxlength="120" required /></label></div>
+            <datalist id="credit-roles"><option value="Storyteller"></option><option value="Director"></option><option value="Interviewee"></option><option value="Photographs"></option><option value="Camera"></option><option value="Language review"></option><option value="Music"></option></datalist>
+            <label>Linked source <span class="field-help">optional</span><select name="SourceAssetId"><option value="">None</option>@foreach (var item in sources) { <option value="@item.Id">@item.DisplayName</option> }</select></label>
+            <button class="button-primary" type="submit">Add credit</button>
+        </form>
+    </details>
+    @if (credits.Count > 0 && !Model.Readiness.CreditsApproved) { <div class="approve-bar"><span><strong>Names spelled right?</strong> Approve these exact credits.</span><form asp-controller="Production" asp-action="ApproveCredits" asp-route-id="@id" method="post"><button class="button-primary" type="submit">Approve credits</button></form></div> }
+</section>
+
+<section class="step @(Model.Readiness.CanExportFinal ? "is-done" : "")" id="render">
+    <div class="step-head"><span class="step-number" aria-hidden="true"><span>2</span></span><div><div class="heading-with-help"><h2>Make your film</h2><button type="button" class="help-button" data-help-title="Preview and final film" data-help="Work down the list from the top. Each item says what to do and has a button that takes you to the right place; tap its ? to see why it matters. Items under “Needed before you can preview” stop both buttons. Once those are fixed you can make a quick preview — a smaller test film. The final 1080 × 1920 film needs the whole list cleared. Films are made in the background; reload this page to see progress."><span aria-hidden="true">?</span><span class="visually-hidden">Help with making the film</span></button></div><p>@(Model.Readiness.CanExportFinal ? "Everything is ready — make your final film." : Model.Readiness.CanPreview ? $"You can make a preview now. Fix the {beforeFinal.Count} thing{(beforeFinal.Count == 1 ? "" : "s")} below for the final film." : $"Fix the {guide.Count} thing{(guide.Count == 1 ? "" : "s")} below, starting at the top. Tap ? on any item for help.")</p></div></div>
+    @if (guide.Count == 0)
+    {
+        <ul class="checklist"><li class="pass">Approved cut, sources, quotes, language review, credits, footage and length are all ready.</li></ul>
+    }
+    @foreach (var group in new[] { (Title: "Needed before you can preview", Hint: "These stop both buttons. Fix them first.", Items: beforePreview), (Title: Model.Readiness.CanPreview ? "Needed for the final film" : "Then, for the final film", Hint: "A quick preview works without these.", Items: beforeFinal) }.Where(g => g.Items.Count > 0))
+    {
+        <h3 class="checklist-heading">@group.Title <span class="field-help">@group.Hint</span></h3>
+        <ol class="checklist checklist-steps">
+            @foreach (var item in group.Items)
+            {
+                var href = FixHref(item.Place);
+                <li>
+                    <div class="checklist-body">
+                        <p class="checklist-title"><strong>@item.Title</strong>@if (item.Why.Length > 0) { <button type="button" class="help-button help-button-small" data-help-title="@item.Title" data-help="@item.Why @(item.WhatToDo.Length > 0 ? "What to do: " + item.WhatToDo : "")"><span aria-hidden="true">?</span><span class="visually-hidden">Why this is needed</span></button> }</p>
+                        @if (item.WhatToDo.Length > 0 && item.WhatToDo != item.Title) { <p class="checklist-todo">@item.WhatToDo</p> }
+                    </div>
+                    @if (href is not null) { <a class="button button-quiet checklist-fix" href="@href">@item.FixLabel →</a> }
+                </li>
+            }
+        </ol>
+    }
+    <div class="duration-meter"><span>Length: <strong>@durationSeconds.ToString("0.#") s</strong> @(credits.Count > 0 ? "(including the credits card)" : "") · the final film needs 60–90 s</span>
+        <div class="bar" role="img" aria-label="Length @durationSeconds.ToString("0.#") seconds; target 60 to 90 seconds"><span class="window" style="left:50%;width:25%"></span><span class="fill" style="width:@(Math.Min(100, durationSeconds / 120 * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span></div>
+    </div>
+    @if (activeJob is not null)
+    {
+        var running = activeJob.State == JobState.Running;
+        var pct = running && activeJob.ProgressTotal > 0 ? (int)Math.Round(100.0 * activeJob.ProgressStep / activeJob.ProgressTotal) : 0;
+        <div class="render-progress" data-render-progress data-status-url="@Url.Action("ExportStatus", new { id })" role="status" aria-live="polite">
+            <div class="render-progress-head">
+                <span class="render-spinner" aria-hidden="true"></span>
+                <div>
+                    <p class="render-title"><strong data-progress-title>@(activeJob.Kind == "RenderFinal" ? "Making your final film" : "Making your preview")</strong></p>
+                    <p class="render-note" data-progress-note>@(running ? (activeJob.ProgressNote.Length > 0 ? activeJob.ProgressNote : "Getting started") : "Waiting to start")</p>
+                </div>
+            </div>
+            <div class="render-bar@(running && activeJob.ProgressTotal > 0 ? "" : " is-waiting")" data-progress-bar role="progressbar" aria-label="Film progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@pct"><span style="width:@(pct)%"></span></div>
+            <p class="field-help"><span data-progress-steps>@(running && activeJob.ProgressTotal > 0 ? $"Step {activeJob.ProgressStep + 1} of {activeJob.ProgressTotal}" : "")</span> <span data-progress-elapsed></span> You can keep working on other pages — your film keeps being made and will appear below.</p>
+            <form asp-action="CancelJob" asp-route-id="@id" method="post"><input type="hidden" name="jobId" value="@activeJob.Id" /><button class="link-button" type="submit">Stop making this film</button></form>
+        </div>
+    }
+    <div class="export-actions">
+        <form asp-action="QueueExport" asp-route-id="@id" method="post"><input type="hidden" name="final" value="true" /><button class="button-primary button-large" type="submit" disabled="@(!Model.Readiness.CanExportFinal)">Make final film</button></form>
+        <form asp-action="QueueExport" asp-route-id="@id" method="post"><input type="hidden" name="final" value="false" /><button class="button-large" type="submit" disabled="@(!Model.Readiness.CanPreview)">Quick preview</button></form>
+    </div>
+    @if (!Model.Readiness.CanExportFinal) { <p class="field-help">@(Model.Readiness.CanPreview ? "“Make final film” turns on when the list above is empty." : "Both buttons turn on as you fix the list — “Quick preview” first, then “Make final film”.")</p> }
+</section>
+
+<section class="step @(film?.Kind == ArtifactKind.FinalVideo ? "is-done" : "")" id="film">
+    <div class="step-head"><span class="step-number" aria-hidden="true"><span>3</span></span><div><h2>Watch and keep</h2><p>@(film is null ? "Your film will appear here after it renders." : film.Kind == ArtifactKind.FinalVideo ? "Your final film." : "Your latest preview.")</p></div></div>
+    @if (film is not null)
+    {
+        <div class="film-player"><video controls preload="metadata" playsinline src="@(Url.Action("Download", new { id = film.Id }) + "#t=0.1")"></video></div>
+        <div class="artifact-list" style="margin-top:1rem">
+        @foreach (var artifact in current.OrderBy(x => x.Kind))
+        {
+            <article><strong>@Label(artifact.Kind)</strong><span class="field-help">@((artifact.ByteLength / 1024d / 1024d).ToString("0.0")) MiB</span><a class="button-quiet button" asp-action="Download" asp-route-id="@artifact.Id" target="_blank" rel="noopener">Open</a></article>
+        }
+        </div>
+        <div class="approve-bar"><span><strong>Keep a family copy.</strong> A ZIP with your original recordings, the film, captions, words, credits and plan — readable without this app.</span><a class="button-secondary button" asp-action="PreservationArchive" asp-route-id="@id">Download archive</a></div>
+    }
+    else
+    {
+        <div class="empty-state"><h3>No film yet</h3><p>Make a preview or your final film above.</p></div>
+    }
+</section>
+
+@if (Model.Jobs.Count > 0)
+{
+    <details class="panel">
+        <summary><span class="summary-text"><strong>Render history</strong><span>@Model.Jobs.Count render@(Model.Jobs.Count == 1 ? "" : "s") · status and any problems</span></span></summary>
+        <div class="panel-body"><div class="job-list">
+        @foreach (var job in Model.Jobs)
+        {
+            <article><p><strong>@(job.Kind == "RenderFinal" ? "Final film" : "Preview")</strong> <span class="status @(job.State == JobState.Succeeded ? "good" : job.State == JobState.Failed ? "bad" : job.State == JobState.Cancelled ? "" : "warn")">@job.State</span> <span class="field-help">@job.CreatedAtUtc.ToLocalTime().ToString("d MMM HH:mm") · attempt @job.Attempts</span></p>
+                @if (!string.IsNullOrWhiteSpace(job.LastFailure)) { <p class="notice error">@job.LastFailure</p> }
+                @if (job.State is JobState.Queued or JobState.Running) { <form asp-action="CancelJob" asp-route-id="@id" method="post"><input type="hidden" name="jobId" value="@job.Id" /><button class="button-danger button-quiet" type="submit">Cancel</button></form> }
+            </article>
+        }
+        </div>
+        @{ var first = Model.Project.ReviewApprovals.OrderBy(x => x.ApprovedAtUtc).FirstOrDefault(); }
+        @if (first is not null) { var e = first.ApprovedAtUtc - Model.Project.CreatedAtUtc; <p class="field-help">Time from starting this story to the first approved cut: @(e.TotalDays >= 1 ? $"{(int)e.TotalDays} d {e.Hours} h" : $"{(int)e.TotalHours} h {e.Minutes} min")</p> }
+        <p class="field-help">AI mode: @Model.AiMode. Missing AI settings never produce made-up output.</p>
+        </div>
+    </details>
+}
+
+@* Reflection for the pilot: the creator's own judgement of the film *@
+@{ var feedback = Model.Project.PilotFeedback.FirstOrDefault(); var hasFilm = Model.Artifacts.Any(x => x.Kind is ArtifactKind.FinalVideo or ArtifactKind.PreviewVideo); }
+<section class="step @(feedback is not null ? "is-done" : "")" id="reflect">
+    <div class="step-head"><span class="step-number" aria-hidden="true"><span>✓</span></span><div><h2>Does it say what you meant?</h2><p>Two quick questions after watching your film. Your answers help improve the studio.</p></div>@if (feedback is not null) { <span class="status good">Saved</span> }</div>
+    @if (!hasFilm && feedback is null) { <p class="field-help">Make a preview or final film first, watch it, then come back here.</p> }
+    else
+    {
+        <form asp-controller="Pilot" asp-action="SaveFeedback" asp-route-id="@id" method="post">
+            <fieldset><legend>Does the film say what you meant it to?</legend>
+                <div class="type-chips">
+                @foreach (var (value, label) in new[] { (IntentMatch.Fully, "Yes, fully"), (IntentMatch.Mostly, "Mostly"), (IntentMatch.Partly, "Partly"), (IntentMatch.NotYet, "Not yet") })
+                {
+                    <label class="type-chip"><input type="radio" name="IntentMatch" value="@((int)value)" checked="@(feedback?.IntentMatch == value)" required /> <span>@label</span></label>
+                }
+                </div>
+            </fieldset>
+            <fieldset><legend>Where did you still need help from someone else?</legend>
+                <div class="type-chips">
+                @foreach (var (area, label) in PilotMetrics.HelpAreas)
+                {
+                    <label class="type-chip"><input type="checkbox" name="NeededHelp" value="@area" checked="@(feedback is not null && feedback.NeededHelp.HasFlag(area))" /> <span>@label</span></label>
+                }
+                </div>
+            </fieldset>
+            <label>What help did you need? <span class="field-help">optional</span><input name="HelpNote" maxlength="500" value="@feedback?.HelpNote" /></label>
+            <label>Anything else? <span class="field-help">optional</span><textarea name="Comment" maxlength="1000" rows="2">@feedback?.Comment</textarea></label>
+            <button class="button-primary" type="submit">@(feedback is null ? "Save my answers" : "Update my answers")</button>
+            <p class="field-help">See every story's measures in <a asp-controller="Pilot" asp-action="Index">Insights</a>.</p>
+        </form>
+    }
+</section>

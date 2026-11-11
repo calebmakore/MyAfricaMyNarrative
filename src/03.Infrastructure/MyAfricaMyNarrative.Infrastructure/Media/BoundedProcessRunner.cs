@@ -4,7 +4,7 @@ namespace MyAfricaMyNarrative.Infrastructure.Media;
 
 public static class BoundedProcessRunner
 {
-    public static async Task RunAsync(string executable, IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken)
+    public static async Task RunAsync(string executable, IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken, string? workingDirectory = null)
     {
         var start = new ProcessStartInfo(executable)
         {
@@ -13,6 +13,7 @@ public static class BoundedProcessRunner
             RedirectStandardOutput = true,
             CreateNoWindow = true
         };
+        if (workingDirectory is not null) start.WorkingDirectory = workingDirectory;
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start FFmpeg.");
         var stderr = process.StandardError.ReadToEndAsync(cancellationToken);

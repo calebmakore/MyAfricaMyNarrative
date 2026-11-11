@@ -1,4 +1,4 @@
 @model RegisterViewModel
 @{ ViewData["Title"] = "Create account"; }
-<section class="auth-card"><div class="auth-intro"><span class="auth-symbol" aria-hidden="true">✦</span><p class="eyebrow">Creator account</p><h1>Create your private studio</h1><p>Your original sources stay private and connected to your story.</p></div>
+<section class="auth-card"><div class="auth-intro"><span class="auth-symbol">@Icons.Emblem</span><p class="eyebrow">Creator account</p><h1>Create your private studio</h1><p>Your original sources stay private and connected to your story.</p></div>
 <form method="post"><div asp-validation-summary="ModelOnly"></div><label asp-for="Email"></label><input asp-for="Email" autocomplete="email" /><span asp-validation-for="Email"></span><label asp-for="Password"></label><input asp-for="Password" autocomplete="new-password" /><span asp-validation-for="Password"></span><button class="button-primary" type="submit">Create account <span aria-hidden="true">→</span></button></form><p class="auth-switch">Already have an account? <a asp-action="Login">Sign in</a></p></section>

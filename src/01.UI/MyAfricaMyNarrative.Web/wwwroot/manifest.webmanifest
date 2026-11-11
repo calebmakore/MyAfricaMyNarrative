@@ -1,0 +1,30 @@
+{
+  "name": "My Africa, My Narrative",
+  "short_name": "My Narrative",
+  "description": "Your story. Your voice. Our Africa. A private studio for turning voice notes and photos into short films you direct.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5ecde",
+  "theme_color": "#1c1410",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
